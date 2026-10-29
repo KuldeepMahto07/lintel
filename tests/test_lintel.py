@@ -102,6 +102,14 @@ def test_rule_import_csv_and_validation(api):
     assert api.post("/api/rules", json={"name": "x", "kind": "between", "applies_to": "door", "value": 1}).status_code == 422
 
 
+def test_waitlist(api):
+    assert api.post("/api/waitlist", json={"email": "not-an-email"}).status_code == 422
+    r = api.post("/api/waitlist", json={"email": "Ana@Studio.example", "host": "Rhino", "firm_size": "1–5"}).json()
+    assert r == {"ok": True, "new": True}
+    assert api.post("/api/waitlist", json={"email": "ana@studio.example"}).json()["new"] is False
+    assert [w["email"] for w in api.get("/api/waitlist").json()] == ["ana@studio.example"]
+
+
 # ---- agent loop with a scripted stand-in for the Claude client ----------------------------------
 
 class Block(SimpleNamespace):

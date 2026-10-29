@@ -2,6 +2,7 @@
 import csv
 import io
 import json
+import re
 import os
 import secrets
 from contextlib import asynccontextmanager
@@ -44,6 +45,9 @@ async def lifespan(_):
 
 app = FastAPI(title="Lintel", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=WEB), name="static")
+SITE = ROOT / "site" / "public"
+if SITE.exists():  # marketing site, built by site/build.py
+    app.mount("/site", StaticFiles(directory=SITE, html=True), name="site")
 
 
 @app.exception_handler(service.ChangeError)
@@ -116,6 +120,26 @@ def post_chat(pid: str, body: dict = Body(...)):
 @app.get("/api/audit")
 def get_audit(project: str | None = None):
     return store.audit_log(project)
+
+
+# ---- waitlist (marketing site form) ----------------------------------------
+
+@app.post("/api/waitlist")
+def join_waitlist(body: dict = Body(...)):
+    email = str(body.get("email", "")).strip().lower()
+    if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email) or len(email) > 200:
+        raise HTTPException(422, "Please enter a valid email address.")
+    fields = ("name", "firm", "firm_size", "host", "message")
+    data = {k: str(body.get(k, ""))[:1000] for k in fields}
+    new = store.add_waitlist(email, data)
+    if new:
+        store.audit(None, "site", "waitlist.joined", email, {"host": data["host"], "firm_size": data["firm_size"]})
+    return {"ok": True, "new": new}
+
+
+@app.get("/api/waitlist")
+def list_waitlist():
+    return store.waitlist()
 
 
 # ---- rules -----------------------------------------------------------------

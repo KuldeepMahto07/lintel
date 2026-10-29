@@ -1,0 +1,63 @@
+<!-- title: In-model assistant · Lintel | description: Ask about your model in plain words. Lintel answers from your real geometry and drafts edits you approve before anything changes. | nav: assistant -->
+<section class="page-hero">
+  <div class="wrap feature">
+    <div>
+      <div class="label reveal">The in-model assistant</div>
+      <h1 class="reveal" data-d=".1">Ask about the drawing. <em>Approve</em> the change.</h1>
+      <p class="reveal" data-d=".2">A small Lintel window floats beside your model. Ask it a question or tell it what to change; it reads your geometry, cites your rules, and drafts the edit for you to approve.</p>
+      <a class="btn btn-go reveal" data-d=".3" href="contact.html">Join the pilot <span class="arrow">→</span></a>
+    </div>
+    <div class="window reveal" data-d=".25">
+      <div class="window-bar"><i></i><i></i><i></i><span>Lintel · residence-04.3dm</span></div>
+      <div class="window-body">
+        <div class="bubble me">Is the main stair OK?</div>
+        <div class="bubble ai">Not quite. Risers are 190 mm against your 178 mm maximum, and treads are 254 mm against a 279 mm minimum. Splitting the 3420 mm rise into 20 risers gives 171 mm each. The tread needs more run, so that one's your call.<span class="ref">rules: stair riser / stair tread · IBC §1011.5.2 · confirm your adopted edition</span></div>
+        <div class="mini-diff"><div><span>Stair 1 · risers</span><span><s>18</s> → <b>20</b></span></div><div><span>Stair 1 · riser height</span><span><s>190</s> → <b>171 mm</b></span></div></div>
+        <div class="mini-actions"><span class="chip go">Approve</span><span class="chip red">Reject</span></div>
+        <div class="bubble me" style="margin-top:14px">We always use 900 mm doors, by the way.</div>
+        <div class="bubble ai">Noted. I've proposed "Door clear width ≥ 900 mm (firm standard)" as a rule. Activate it on the Rules page and I'll check every project against it.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="label reveal">What it does</div>
+    <h2 class="reveal">From a question to a finished change.</h2>
+    <div class="cards">
+      <article class="card reveal"><span class="num">reads</span><h3>Grounded in your model</h3><p>It works from the open drawing: rooms, doors, stairs and walls, with their real sizes.</p></article>
+      <article class="card reveal"><span class="num">drafts</span><h3>Does the edit for you</h3><p>Ask for a change and it prepares the exact properties to update, ready for review.</p></article>
+      <article class="card reveal"><span class="num">waits</span><h3>Approval first, always</h3><p>It can propose. It can't apply. Every edit waits for a person to approve it.</p></article>
+      <article class="card reveal"><span class="num">talks</span><h3>No commands to learn</h3><p>Plain sentences work. When something is ambiguous it asks one question instead of guessing.</p></article>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="label reveal">Three steps</div>
+    <h2 class="reveal">Open. Ask. Approve.</h2>
+    <div class="three">
+      <article class="card reveal"><span class="num">step 01</span><h3>Open the window</h3><p>Run Lintel in Rhino and the window docks beside your viewport, already connected to the model.</p></article>
+      <article class="card reveal"><span class="num">step 02</span><h3>Ask or instruct</h3><p>"Check the corridors." "Rename the exam rooms to our convention." "Why is the office flagged?"</p></article>
+      <article class="card reveal"><span class="num">step 03</span><h3>Approve the diff</h3><p>See every property before and after. Approve and the edit lands as one undo step.</p></article>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="label reveal">Questions</div>
+    <h2 class="reveal">Asked by architects.</h2>
+    <div class="faq reveal">
+      <details><summary>Does it ever change the model on its own?</summary><p>No. The assistant has no tool that applies changes. It can only draft them. A change reaches your model only after a person clicks Approve, and the plugin refuses it if the model changed in the meantime.</p></details>
+      <details><summary>Which software does it run in?</summary><p>Rhino 8 first. SketchUp, Revit and Archicad come next, in the order pilot firms ask for them. The rules, history and dashboard stay the same across all of them.</p></details>
+      <details><summary>How does it know what a door is in Rhino?</summary><p>Rhino has no door objects, so Lintel uses a light convention: layers such as Lintel::Doors plus a few text attributes (width, exit). A sample model shows the setup in a minute.</p></details>
+      <details><summary>Can I undo something I approved?</summary><p>Yes. Ctrl+Z in your CAD app undoes the whole change, and the dashboard can revert it too. Both are logged.</p></details>
+      <details><summary>Does it quote the building code?</summary><p>No. Lintel cites the section number your rule refers to and asks you to confirm it against your jurisdiction's adopted edition. It never reproduces code text.</p></details>
+    </div>
+  </div>
+</section>
+
+<section class="cta"><div class="wrap"><h2 class="reveal">Try it on one of your own drawings.</h2><a class="btn btn-go reveal" href="contact.html">Join the pilot <span class="arrow">→</span></a></div></section>

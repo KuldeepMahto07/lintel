@@ -73,8 +73,13 @@ def main():
     args = ap.parse_args()
     host = FixtureHost(args.model, fresh=args.fresh)
     while True:
-        for cid, ok, err in host.sync():
-            print("applied" if ok else "refused", cid, err or "")
+        try:
+            for cid, ok, err in host.sync():
+                print("applied" if ok else "refused", cid, err or "")
+        except OSError as e:  # server restarting: keep watching
+            if not args.watch:
+                raise
+            print("Lintel unreachable (%s); retrying" % e)
         if not args.watch:
             print("snapshot pushed for", host.model["project"])
             break

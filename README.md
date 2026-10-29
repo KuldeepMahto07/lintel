@@ -20,6 +20,9 @@ start.bat            → http://127.0.0.1:8002
 - Set `ANTHROPIC_API_KEY` for the chat assistant. Everything else (checks, fixes, approvals, rules, audit) works without it.
 - Optional: `LINTEL_MODEL` (default `claude-sonnet-5-5`), `LINTEL_DB`, `LINTEL_TOKEN`.
 
+### Marketing site
+`site/` is the public website: home with a live revision-cloud demo, assistant, dashboard, pricing, about, and a pilot sign-up form that posts to `/api/waitlist`. The design and copy are Lintel's own. Run `python siteuild.py` to build `site/public/` (start.bat does this), then open http://127.0.0.1:8002/site/. The output is static and can be deployed to any static host; the form needs the backend.
+
 ### Try it without CAD
 ```
 .venv\Scripts\python hosts\fixture_host.py samples\clinic.json --watch

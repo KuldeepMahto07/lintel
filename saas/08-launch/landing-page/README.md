@@ -1,6 +1,6 @@
 # Landing page
 
-**Status:** ⬜ Not started
+**Status:** 🟡 In progress: site built in `site/` (6 pages, live demo, waitlist form). 👤 Pick a domain and host; 🤖 deploy and record the demo GIF
 
 Part of [08 · Launch](../README.md) in the [Lintel SaaS plan](../../README.md).
 

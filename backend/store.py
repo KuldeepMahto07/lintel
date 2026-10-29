@@ -19,6 +19,7 @@ create table if not exists changesets (id text primary key, project text, title 
 create table if not exists audit (id integer primary key autoincrement, ts real, project text, actor text,
   action text, target text, detail text);
 create table if not exists chat (project text primary key, messages text);
+create table if not exists waitlist (id integer primary key autoincrement, ts real, email text unique, data text);
 """
 
 _db = None
@@ -169,3 +170,18 @@ def chat_messages(pid):
 def save_chat(pid, messages):
     _write("insert into chat values (?,?) on conflict(project) do update set messages=excluded.messages",
            (pid, json.dumps(messages)))
+
+
+# ---- waitlist (marketing site) ---------------------------------------------
+
+def add_waitlist(email, data):
+    """Returns False if the email was already on the list."""
+    with _lock:
+        cur = db().execute("insert or ignore into waitlist (ts, email, data) values (?,?,?)",
+                           (time.time(), email, json.dumps(data)))
+        db().commit()
+    return cur.rowcount == 1
+
+
+def waitlist():
+    return [dict(r, data=json.loads(r["data"])) for r in db().execute("select * from waitlist order by id desc")]

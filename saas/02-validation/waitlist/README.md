@@ -1,6 +1,6 @@
 # Waitlist
 
-**Status:** ⬜ Not started (needs the landing page)
+**Status:** 🟡 In progress: `/api/waitlist` and the site's pilot form work locally; nothing is deployed yet
 
 Part of [02 · Validation](../README.md) in the [Lintel SaaS plan](../../README.md).
 
