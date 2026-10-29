@@ -1,0 +1,23 @@
+[
+  {"id": "door-clear-width", "name": "Door clear width", "kind": "min", "applies_to": "door", "prop": "clear_width_mm",
+   "value": 813, "unit": "mm", "severity": "error", "fixable": true, "source": "starter",
+   "ref": "IBC §1010.1.1 (verify against your adopted edition and local amendments)"},
+  {"id": "corridor-width", "name": "Corridor clear width", "kind": "min", "applies_to": "room", "where": {"use": "corridor"},
+   "prop": "clear_width_mm", "value": 1118, "unit": "mm", "severity": "error", "fixable": false, "source": "starter",
+   "ref": "IBC §1020 corridor width (verify; occupant load and occupancy change the minimum)"},
+  {"id": "stair-riser-max", "name": "Stair riser height", "kind": "max", "applies_to": "stair", "prop": "riser_mm",
+   "value": 178, "unit": "mm", "severity": "error", "fixable": true, "source": "starter",
+   "ref": "IBC §1011.5.2 (verify; residential stairs under the IRC differ)"},
+  {"id": "stair-tread-min", "name": "Stair tread depth", "kind": "min", "applies_to": "stair", "prop": "tread_mm",
+   "value": 279, "unit": "mm", "severity": "error", "fixable": true, "source": "starter",
+   "ref": "IBC §1011.5.2 (verify)"},
+  {"id": "egress-travel", "name": "Exit access travel distance", "kind": "egress", "applies_to": "room",
+   "value": 60960, "unit": "mm", "severity": "error", "fixable": false, "source": "starter",
+   "ref": "IBC Table 1017.2, business occupancy without sprinklers (verify occupancy and sprinkler status)"},
+  {"id": "bedroom-area", "name": "Habitable room floor area", "kind": "min", "applies_to": "room", "where": {"use": "bedroom"},
+   "prop": "area_m2", "value": 6.5, "unit": "m²", "severity": "warning", "fixable": false, "source": "starter",
+   "ref": "IRC §R304.1 (verify)"},
+  {"id": "firm-exam-room", "name": "Exam room area (firm standard)", "kind": "min", "applies_to": "room", "where": {"use": "exam"},
+   "prop": "area_m2", "value": 11, "unit": "m²", "severity": "warning", "fixable": false, "source": "firm",
+   "ref": "Firm standard example: edit or delete"}
+]

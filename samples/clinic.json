@@ -1,0 +1,451 @@
+{
+ "project": "sample-clinic",
+ "name": "Sample clinic (fixture)",
+ "elements": [
+  {
+   "id": "R-lobby",
+   "type": "room",
+   "props": {
+    "name": "Lobby",
+    "use": "lobby",
+    "area_m2": 72.0,
+    "level": "L1"
+   },
+   "geom": {
+    "outline": [
+     [
+      -8000,
+      -4000
+     ],
+     [
+      0,
+      -4000
+     ],
+     [
+      0,
+      5000
+     ],
+     [
+      -8000,
+      5000
+     ]
+    ]
+   }
+  },
+  {
+   "id": "R-corr",
+   "type": "room",
+   "props": {
+    "name": "Main corridor",
+    "use": "corridor",
+    "area_m2": 70.0,
+    "level": "L1",
+    "clear_width_mm": 1000
+   },
+   "geom": {
+    "outline": [
+     [
+      0,
+      0
+     ],
+     [
+      70000,
+      0
+     ],
+     [
+      70000,
+      1000
+     ],
+     [
+      0,
+      1000
+     ]
+    ]
+   }
+  },
+  {
+   "id": "R-exam1",
+   "type": "room",
+   "props": {
+    "name": "Exam 1",
+    "use": "exam",
+    "area_m2": 10.2,
+    "level": "L1"
+   },
+   "geom": {
+    "outline": [
+     [
+      2000,
+      1000
+     ],
+     [
+      5000,
+      1000
+     ],
+     [
+      5000,
+      4400
+     ],
+     [
+      2000,
+      4400
+     ]
+    ]
+   }
+  },
+  {
+   "id": "R-exam2",
+   "type": "room",
+   "props": {
+    "name": "Exam 2",
+    "use": "exam",
+    "area_m2": 12.0,
+    "level": "L1"
+   },
+   "geom": {
+    "outline": [
+     [
+      5000,
+      1000
+     ],
+     [
+      8000,
+      1000
+     ],
+     [
+      8000,
+      5000
+     ],
+     [
+      5000,
+      5000
+     ]
+    ]
+   }
+  },
+  {
+   "id": "R-wc",
+   "type": "room",
+   "props": {
+    "name": "Accessible WC",
+    "use": "toilet",
+    "area_m2": 4.0,
+    "level": "L1"
+   },
+   "geom": {
+    "outline": [
+     [
+      8000,
+      1000
+     ],
+     [
+      10000,
+      1000
+     ],
+     [
+      10000,
+      3000
+     ],
+     [
+      8000,
+      3000
+     ]
+    ]
+   }
+  },
+  {
+   "id": "R-oncall",
+   "type": "room",
+   "props": {
+    "name": "On-call room",
+    "use": "bedroom",
+    "area_m2": 6.0,
+    "level": "L1"
+   },
+   "geom": {
+    "outline": [
+     [
+      30000,
+      1000
+     ],
+     [
+      32000,
+      1000
+     ],
+     [
+      32000,
+      4000
+     ],
+     [
+      30000,
+      4000
+     ]
+    ]
+   }
+  },
+  {
+   "id": "R-office",
+   "type": "room",
+   "props": {
+    "name": "Admin office",
+    "use": "office",
+    "area_m2": 40.0,
+    "level": "L1"
+   },
+   "geom": {
+    "outline": [
+     [
+      62000,
+      1000
+     ],
+     [
+      70000,
+      1000
+     ],
+     [
+      70000,
+      6000
+     ],
+     [
+      62000,
+      6000
+     ]
+    ]
+   }
+  },
+  {
+   "id": "D-01",
+   "type": "door",
+   "props": {
+    "name": "Main entrance",
+    "clear_width_mm": 1830,
+    "rooms": [
+     "R-lobby"
+    ],
+    "exit": true,
+    "level": "L1"
+   },
+   "geom": {
+    "location": [
+     -8000,
+     500
+    ]
+   }
+  },
+  {
+   "id": "D-02",
+   "type": "door",
+   "props": {
+    "name": "Lobby to corridor",
+    "clear_width_mm": 1830,
+    "rooms": [
+     "R-lobby",
+     "R-corr"
+    ],
+    "exit": false,
+    "level": "L1"
+   },
+   "geom": {
+    "location": [
+     0,
+     500
+    ]
+   }
+  },
+  {
+   "id": "D-03",
+   "type": "door",
+   "props": {
+    "name": "Exam 1 door",
+    "clear_width_mm": 760,
+    "rooms": [
+     "R-corr",
+     "R-exam1"
+    ],
+    "exit": false,
+    "level": "L1"
+   },
+   "geom": {
+    "location": [
+     3500,
+     1000
+    ]
+   }
+  },
+  {
+   "id": "D-04",
+   "type": "door",
+   "props": {
+    "name": "Exam 2 door",
+    "clear_width_mm": 915,
+    "rooms": [
+     "R-corr",
+     "R-exam2"
+    ],
+    "exit": false,
+    "level": "L1"
+   },
+   "geom": {
+    "location": [
+     6500,
+     1000
+    ]
+   }
+  },
+  {
+   "id": "D-05",
+   "type": "door",
+   "props": {
+    "name": "WC door",
+    "clear_width_mm": 711,
+    "rooms": [
+     "R-corr",
+     "R-wc"
+    ],
+    "exit": false,
+    "level": "L1"
+   },
+   "geom": {
+    "location": [
+     9000,
+     1000
+    ]
+   }
+  },
+  {
+   "id": "D-06",
+   "type": "door",
+   "props": {
+    "name": "On-call door",
+    "clear_width_mm": 813,
+    "rooms": [
+     "R-corr",
+     "R-oncall"
+    ],
+    "exit": false,
+    "level": "L1"
+   },
+   "geom": {
+    "location": [
+     31000,
+     1000
+    ]
+   }
+  },
+  {
+   "id": "D-07",
+   "type": "door",
+   "props": {
+    "name": "Office door",
+    "clear_width_mm": 864,
+    "rooms": [
+     "R-corr",
+     "R-office"
+    ],
+    "exit": false,
+    "level": "L1"
+   },
+   "geom": {
+    "location": [
+     66000,
+     1000
+    ]
+   }
+  },
+  {
+   "id": "S-01",
+   "type": "stair",
+   "props": {
+    "name": "Stair 1",
+    "riser_mm": 190,
+    "tread_mm": 254,
+    "risers": 18,
+    "width_mm": 1120,
+    "total_rise_mm": 3420,
+    "level": "L1"
+   },
+   "geom": {
+    "location": [
+     40000,
+     -2500
+    ]
+   }
+  },
+  {
+   "id": "W-01",
+   "type": "wall",
+   "props": {
+    "length_mm": 70000,
+    "thickness_mm": 200,
+    "height_mm": 3000
+   },
+   "geom": {
+    "start": [
+     0,
+     0
+    ],
+    "end": [
+     70000,
+     0
+    ]
+   }
+  },
+  {
+   "id": "W-02",
+   "type": "wall",
+   "props": {
+    "length_mm": 70000,
+    "thickness_mm": 200,
+    "height_mm": 3000
+   },
+   "geom": {
+    "start": [
+     0,
+     1000
+    ],
+    "end": [
+     70000,
+     1000
+    ]
+   }
+  },
+  {
+   "id": "W-03",
+   "type": "wall",
+   "props": {
+    "length_mm": 9000,
+    "thickness_mm": 200,
+    "height_mm": 3000
+   },
+   "geom": {
+    "start": [
+     -8000,
+     -4000
+    ],
+    "end": [
+     -8000,
+     5000
+    ]
+   }
+  },
+  {
+   "id": "W-04",
+   "type": "wall",
+   "props": {
+    "length_mm": 6000,
+    "thickness_mm": 200,
+    "height_mm": 3000
+   },
+   "geom": {
+    "start": [
+     70000,
+     0
+    ],
+    "end": [
+     70000,
+     6000
+    ]
+   }
+  }
+ ]
+}
