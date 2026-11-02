@@ -12,7 +12,7 @@ from fastapi import Body, FastAPI, Header, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import agent, checker, service, store
+from . import agent, checker, demo, service, store
 
 ROOT = Path(__file__).resolve().parent.parent
 WEB = ROOT / "web"
@@ -35,6 +35,7 @@ def seed():
             store.put_rule(r)
         store.audit(None, "system", "rules.seeded", "", {"count": len(store.rules())})
     plugin_token()
+    demo.seed()
 
 
 @asynccontextmanager

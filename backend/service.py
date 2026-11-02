@@ -75,7 +75,9 @@ def decide(cid, decision, actor):
     status = {"approve": "approved", "reject": "rejected"}[decision]
     store.set_changeset_status(cid, status)
     store.audit(cs["project"], actor, f"changeset.{status}", cid, {"title": cs["title"]})
-    return status
+    if status == "approved":
+        _demo_apply(cid)
+    return store.changeset(cid)["status"] if status == "approved" else status
 
 
 def revert(cid, actor):
@@ -87,7 +89,15 @@ def revert(cid, actor):
     rid = store.add_changeset(cs["project"], f"Revert: {cs['title']}", f"Revert of {cid} requested by {actor}",
                               ops, "revert", status="approved", reverts=cid)
     store.audit(cs["project"], actor, "changeset.revert_requested", rid, {"reverts": cid})
+    _demo_apply(rid)
     return rid
+
+
+def _demo_apply(cid):
+    """In hosted demo mode there is no plugin, so the demo host applies approved changes at once."""
+    from . import demo
+    if demo.enabled():
+        demo.apply_now(cid)
 
 
 def host_result(cid, ok, error, host_name):

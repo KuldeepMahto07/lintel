@@ -110,6 +110,23 @@ def test_waitlist(api):
     assert [w["email"] for w in api.get("/api/waitlist").json()] == ["ana@studio.example"]
 
 
+def test_demo_mode_seeds_and_applies_on_approval(tmp_path, monkeypatch):
+    monkeypatch.setenv("LINTEL_DEMO", "1")
+    monkeypatch.setenv("LINTEL_TOKEN", "t")
+    from backend import store
+    store.reset(tmp_path / "demo.db")
+    from backend.app import app
+    with TestClient(app) as c:
+        assert [p["id"] for p in c.get("/api/projects").json()] == ["sample-clinic"]
+        cid = c.post("/api/projects/sample-clinic/issues/door-clear-width:D-03/fix", json={}).json()["changeset"]
+        assert c.post(f"/api/changesets/{cid}/approve", json={}).json()["status"] == "applied"
+        d = c.get("/api/projects/sample-clinic").json()
+        assert next(e for e in d["elements"] if e["id"] == "D-03")["props"]["clear_width_mm"] == 813
+        rv = c.post(f"/api/changesets/{cid}/revert", json={}).json()["changeset"]
+        statuses = {x["id"]: x["status"] for x in c.get("/api/projects/sample-clinic").json()["changesets"]}
+        assert statuses == {cid: "reverted", rv: "applied"}
+
+
 # ---- agent loop with a scripted stand-in for the Claude client ----------------------------------
 
 class Block(SimpleNamespace):

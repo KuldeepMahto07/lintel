@@ -44,6 +44,22 @@ Open the dashboard, click **Propose fix** on an issue, then **Approve** under Ap
 | `Lintel::Stairs` | any object | `name`, `riser_mm`, `tread_mm`, `risers`, `width_mm`, `total_rise_mm` |
 | `Lintel::Walls` | curves | `thickness_mm`, `height_mm` |
 
+## Hosted demo (Vercel)
+Live: **https://lintel-ruddy-five.vercel.app** (dashboard at `/`, marketing site at `/site/`).
+
+- The whole app runs as one Python function (`api/index.py`, `vercel.json`) in **demo mode** (`LINTEL_DEMO=1`, `backend/demo.py`).
+- The database lives in the function's `/tmp`. It is re-seeded with the sample clinic on every cold start, so changes, rules and pilot sign-ups do **not** persist.
+- No CAD plugin can stay connected to a serverless function, so a demo host applies approved change sets immediately (same drift guard, logged as `host:demo`).
+- Chat needs `ANTHROPIC_API_KEY` set in the Vercel project's environment variables.
+- `.vercelignore` keeps local data, tests, the private study build and the cloned repos out of the upload.
+
+Deploy (build the marketing site first; the installed global CLI is too old for Vercel's API):
+```
+.venv\Scripts\python siteuild.py
+npx vercel@latest deploy --prod
+```
+For real use, move the database to a hosted Postgres and run the backend somewhere long-lived so plugins can stay connected.
+
 ## Verify
 ```
 .venv\Scripts\python -m pytest -q tests          # 11 tests
