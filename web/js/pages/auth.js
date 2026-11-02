@@ -1,17 +1,24 @@
-// Sign in, sign up, password reset and invite acceptance: a centred card on the ruled sheet.
+// Sign in, sign up, password reset and invite acceptance: a ruled drawing sheet beside the form.
 import { app, field, formData, get, h, post, showErrors } from "../lib.js";
 import { navigate, refreshMe } from "../main.js";
+import { elevation, logoMark } from "../art.js";
 
 function sheet(title, kicker, ...content) {
-  return h("main", { class: "auth" },
-    h("div", { class: "auth-sheet", "aria-hidden": "true" },
-      h("div", { class: "ruler top" }), h("div", { class: "ruler bottom" }), h("div", { class: "ruler left" }), h("div", { class: "ruler right" }),
-      ["tl", "tr", "bl", "br"].map((c) => h("span", { class: ["corner", c] }, "+"))),
-    h("div", { class: "auth-box" },
-      h("a", { class: "logo", href: "/site/" }, h("span", { class: "logo-mark" }), "LINTEL"),
-      kicker && h("span", { class: "label muted" }, kicker),
-      h("h1", null, title),
-      ...content));
+  return h("main", { class: "auth split" },
+    h("section", { class: "auth-art", "aria-hidden": "true" },
+      h("div", { class: "art-frame" },
+        h("div", { class: "ruler top" }), h("div", { class: "ruler bottom" }), h("div", { class: "ruler left" }), h("div", { class: "ruler right" }),
+        ["tl", "tr", "bl", "br"].map((c) => h("span", { class: ["corner", c] }, "+")),
+        elevation({ seed: 11 })),
+      h("div", { class: "caption" },
+        h("span", { class: "label muted" }, "Rule checks · approval-gated edits · audit log"),
+        h("span", { class: "h2" }, "Your standards, checked inside the model."))),
+    h("div", { class: "auth-form" },
+      h("div", { class: "auth-box" },
+        h("a", { class: "logo", href: "/app", "data-link": "" }, logoMark(34), "LINTEL"),
+        kicker && h("span", { class: "label muted" }, kicker),
+        h("h1", null, title),
+        ...content)));
 }
 
 const input = (name, type = "text", extra = {}) => h("input", { class: "input", name, type, ...extra });

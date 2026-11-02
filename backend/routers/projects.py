@@ -25,7 +25,13 @@ def _project(c, ref):
 def list_projects(archived: int = 0, c: Ctx = Depends(auth.current)):
     out = store.projects(c.fid, bool(archived))
     for p in out:
-        p["issues"] = len(service.issues(c.fid, p["id"])) if p["snapshot_at"] else 0
+        found = service.issues(c.fid, p["id"]) if p["snapshot_at"] else []
+        p["issues"] = len(found)
+        # room outlines for the card thumbnail, and which of them carry an issue
+        rooms = [e for e in service.elements(p["id"]) if e["type"] == "room" and (e.get("geom") or {}).get("outline")][:60]
+        flagged = {i["element"] for i in found}
+        p["thumb"] = {"rooms": [r["geom"]["outline"] for r in rooms],
+                      "flagged": [n for n, r in enumerate(rooms) if r["id"] in flagged]}
     return out
 
 

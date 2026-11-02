@@ -1,5 +1,6 @@
 // Lintel web app: router, app shell (header of cells), command bar, offline banner, global keys.
 import { $, ApiError, app, clear, closeTop, dialog, get, h, initials, onNet, post, toast } from "./lib.js";
+import { logoMark } from "./art.js";
 import * as auth from "./pages/auth.js";
 import * as projects from "./pages/projects.js";
 import * as workspace from "./pages/workspace.js";
@@ -115,7 +116,7 @@ function ensureShell() {
 }
 
 function navCell(key, label, href, extra) {
-  const a = h("a", { class: ["cell", key === "approvals" ? "" : "hide-narrow"], href, "data-link": "", dataset: { nav: key } }, label, extra);
+  const a = h("a", { class: ["cell nav", key === "approvals" ? "" : "hide-narrow"], href, "data-link": "", dataset: { nav: key } }, label, extra);
   shell.nav[key] = a;
   return a;
 }
@@ -154,14 +155,14 @@ function renderHeader() {
     });
   }
   clear(shell.header,
-    h("a", { class: "cell logo", href: "/app", "data-link": "", "aria-label": "Lintel home" }, h("span", { class: "logo-mark" }), "LINTEL"),
+    h("a", { class: "cell logo", href: "/app", "data-link": "", "aria-label": "Lintel home" }, logoMark(34), "LINTEL"),
+    h("span", { class: "spacer" }),
     navCell("projects", "Projects", "/app"),
     navCell("approvals", "Approvals", "/app/approvals", h("span", { class: "badge", id: "approvals-badge" })),
     navCell("rules", "Rules", "/app/rules"),
     navCell("audit", "Audit", "/app/audit"),
     navCell("settings", "Settings", "/app/settings"),
-    h("button", { class: "cell hide-narrow", onclick: openCommandBar, title: "Command bar (Ctrl K)" }, h("span", { class: "muted" }, "⌘K")),
-    h("span", { class: "spacer" }),
+    h("button", { class: "cell nav hide-narrow", onclick: openCommandBar, title: "Command bar (Ctrl K)", style: { width: "88px" } }, "⌘K"),
     firmCell, acctCell);
 }
 
@@ -225,6 +226,7 @@ export async function refreshBadge() {
     const d = await get("/api/approvals");
     const b = document.getElementById("approvals-badge");
     if (b) b.textContent = d.changesets.length ? String(d.changesets.length) : "";
+    shell?.nav.approvals?.classList.toggle("cta", d.changesets.length > 0);
   } catch { /* the banner covers network errors */ }
 }
 setInterval(() => { if (shell && document.visibilityState === "visible") refreshBadge(); }, 15000);
@@ -304,5 +306,39 @@ document.addEventListener("keydown", (e) => {
 window.addEventListener("unhandledrejection", (e) => {
   if (e.reason instanceof ApiError) { e.preventDefault(); if (e.reason.status !== 401) toast(e.reason.message, { error: true }); }
 });
+
+// ---- drawing-sheet details -------------------------------------------------
+// Buttons ending in "→" get the arrow in the accent colour, as on the Lintel site.
+function arrows(root) {
+  for (const btn of root.querySelectorAll ? root.querySelectorAll(".btn") : []) {
+    for (const n of btn.childNodes) {
+      if (n.nodeType === 3 && /\s→$/.test(n.nodeValue)) {
+        n.nodeValue = n.nodeValue.replace(/→$/, "");
+        n.after(h("span", { class: "arr", "aria-hidden": "true" }, "→"));
+      }
+    }
+  }
+}
+new MutationObserver((muts) => {
+  for (const m of muts) for (const n of m.addedNodes) if (n.nodeType === 1) arrows(n.matches?.(".btn") ? n.parentNode || n : n);
+}).observe(document.body, { childList: true, subtree: true });
+
+// a small accent dot trails the pointer; the real cursor is untouched
+if (matchMedia("(pointer: fine)").matches && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+  const dot = h("div", { class: "cursor-dot", "aria-hidden": "true" });
+  document.body.append(dot);
+  let tx = 0, ty = 0, x = 0, y = 0, raf = 0;
+  const step = () => {
+    x += (tx - x) * 0.22; y += (ty - y) * 0.22;
+    dot.style.transform = `translate(${x + 14}px, ${y + 14}px)`;
+    raf = Math.abs(tx - x) + Math.abs(ty - y) > 0.3 ? requestAnimationFrame(step) : 0;
+  };
+  window.addEventListener("pointermove", (e) => {
+    tx = e.clientX; ty = e.clientY;
+    dot.classList.toggle("on", !e.target.closest?.("svg.plan"));
+    if (!raf) raf = requestAnimationFrame(step);
+  });
+  document.addEventListener("pointerleave", () => dot.classList.remove("on"));
+}
 
 route();

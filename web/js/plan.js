@@ -2,12 +2,14 @@
 // zoom with the wheel or pinch, F fits, drag a box to select. Crosshair + X/Y readout inside the canvas only.
 import { clear, h, num, reducedMotion, s } from "./lib.js";
 
-const PAD = 0.06;
+const PAD = 0.1;
 
 export function createPlan({ onSelectElement, onSelectIssue, onBoxSelect }) {
   const svg = s("svg", { class: "plan", role: "img", "aria-label": "Floor plan. Every flagged element is also in the issue list.", preserveAspectRatio: "xMidYMid meet" });
   const gWalls = s("g"), gRooms = s("g"), gDoors = s("g"), gStairs = s("g"), gLabels = s("g"), gMarks = s("g"), gSel = s("g");
-  svg.append(gRooms, gWalls, gStairs, gDoors, gLabels, gMarks, gSel);
+  const gDims = s("g", { class: "dim" }), gLeaders = s("g");
+  svg.append(gRooms, gWalls, gStairs, gDoors, gDims, gLabels, gLeaders, gMarks, gSel);
+  let ext = null; // raw model extents in mm, for the overall dimension lines
   const chH = h("div", { class: "crosshair h" }), chV = h("div", { class: "crosshair v" });
   const readout = h("div", { class: "readout" });
   const label = h("div", { class: "plan-label micro muted" }, "Plan");
@@ -66,7 +68,7 @@ export function createPlan({ onSelectElement, onSelectIssue, onBoxSelect }) {
   function draw() {
     const flagged = new Map();
     issues.forEach((i) => { if (!flagged.has(i.element)) flagged.set(i.element, i.severity); });
-    clear(gWalls); clear(gRooms); clear(gDoors); clear(gStairs); clear(gLabels); clear(gMarks);
+    clear(gWalls); clear(gRooms); clear(gDoors); clear(gStairs); clear(gLabels); clear(gMarks); clear(gLeaders);
     for (const el of elements) {
       const cls = (base) => [base, flagged.has(el.id) && "flag", selected.element === el.id && "sel"];
       if (el.type === "wall" && el.geom?.start && el.geom?.end) {
@@ -117,9 +119,26 @@ export function createPlan({ onSelectElement, onSelectIssue, onBoxSelect }) {
         s("rect", { class: "ring", x: -11, y: -11, width: 22, height: 22 }),
         s("text", { x: 0, y: 0.5, "font-size": 9 }, String(n + 1)));
       gMarks.append(g);
+      gLeaders.append(s("line", { class: "leader", dataset: { x: a[0], y: a[1], k: k - 1 } }));
     });
     seenIssues = new Set(issues.map((i) => i.id));
+    const all = elements.flatMap((el) => { const g = el.geom || {}; return [...(g.outline || []), g.location, g.start, g.end].filter(Boolean); });
+    ext = all.length ? { x0: Math.min(...all.map((p) => p[0])), x1: Math.max(...all.map((p) => p[0])), y0: Math.min(...all.map((p) => p[1])), y1: Math.max(...all.map((p) => p[1])) } : null;
     applyView();
+  }
+
+  function drawDims(k) {
+    clear(gDims);
+    if (!ext) return;
+    const off = 28 * k, tick = 5 * k;
+    const yb = Y(ext.y0) + off, xl = ext.x0 - off;
+    const ln = (x1, y1, x2, y2) => s("line", { x1, y1, x2, y2 });
+    gDims.setAttribute("font-size", 10 * k);
+    gDims.append(
+      ln(ext.x0, yb, ext.x1, yb), ln(ext.x0, yb - tick, ext.x0, yb + tick), ln(ext.x1, yb - tick, ext.x1, yb + tick),
+      s("text", { x: (ext.x0 + ext.x1) / 2, y: yb - 6 * k }, num(ext.x1 - ext.x0)),
+      ln(xl, Y(ext.y1), xl, Y(ext.y0)), ln(xl - tick, Y(ext.y1), xl + tick, Y(ext.y1)), ln(xl - tick, Y(ext.y0), xl + tick, Y(ext.y0)),
+      s("text", { x: xl - 6 * k, y: (Y(ext.y0) + Y(ext.y1)) / 2, transform: `rotate(-90 ${xl - 6 * k} ${(Y(ext.y0) + Y(ext.y1)) / 2})` }, num(ext.y1 - ext.y0)));
   }
 
   // ---- view ----------------------------------------------------------------
@@ -137,6 +156,12 @@ export function createPlan({ onSelectElement, onSelectIssue, onBoxSelect }) {
       const x = Number(g.dataset.x), y = Number(g.dataset.y), i = Number(g.dataset.k);
       g.setAttribute("transform", `translate(${x + i * 18 * k} ${Y(y) - 16 * k}) scale(${k})`);
     }
+    for (const l of gLeaders.children) {
+      const x = Number(l.dataset.x), y = Number(l.dataset.y), i = Number(l.dataset.k);
+      l.setAttribute("x1", x); l.setAttribute("y1", Y(y));
+      l.setAttribute("x2", x + i * 18 * k); l.setAttribute("y2", Y(y) - 16 * k + 7 * k);
+    }
+    drawDims(k);
   }
 
   function computeBounds() {

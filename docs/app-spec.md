@@ -95,8 +95,8 @@ A user belongs to one or more **firms** (workspaces). Everything (projects, rule
 - Profile, firm name, members and roles, invites, plugin tokens, danger zone.
 - Billing placeholder (plans from `saas/11-conversion`); real payments later (👤 merchant account).
 
-### 3.11 Marketing site ✅
-- Stays at `/site/`. The pilot form already saves to the waitlist.
+### 3.11 Marketing site (removed 2026-11-03)
+- Removed at the owner's request. `/` and old `/site/` links redirect to `/app`. The `/api/waitlist` endpoint remains for a future site.
 
 ---
 

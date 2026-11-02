@@ -16,7 +16,7 @@ It's an original product built after studying the public pages of heronaiapp.com
 ## Run
 
 ```
-start.bat            → http://127.0.0.1:8002  (the app is at /app, the marketing site at /site/)
+start.bat            → http://127.0.0.1:8002/app
 ```
 
 1. Open http://127.0.0.1:8002/signup and create your firm. New firms get 14 days of Pro.
@@ -30,9 +30,6 @@ Configuration (all optional locally):
 - `RESEND_API_KEY`, `MAIL_FROM`: email. Unset means emails print to the console, and the app shows invite links to copy.
 - `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_{PRO,FIRM}_{MONTH,YEAR}`: payments (see `docs/billing.md`).
 - `LINTEL_MODEL` (default `claude-sonnet-5-5`), `LINTEL_STAFF_TOKEN` (reads the waitlist via `GET /api/waitlist`).
-
-### Marketing site
-`site/` is the public website: home with a live revision-cloud demo, assistant, dashboard, pricing, about, and a pilot sign-up form that posts to `/api/waitlist`. The design and copy are Lintel's own. Run `python site\build.py` to build `site/public/` (start.bat does this), then open http://127.0.0.1:8002/site/. The output is static and can be deployed to any static host; the form needs the backend.
 
 ### Try the plugin protocol without CAD
 Create a token in **Settings › Plugins**, then:
@@ -58,7 +55,7 @@ The project appears in the app. Click **Propose fix** on an issue, then **Approv
 | `Lintel::Walls` | curves | `thickness_mm`, `height_mm` |
 
 ## Hosted demo (Vercel)
-Live: **https://lintel-ruddy-five.vercel.app** (dashboard at `/`, marketing site at `/site/`).
+Live: **https://lintel-ruddy-five.vercel.app** (the app at `/app`; `/` and old `/site/` links go there).
 
 - The whole app runs as one Python function (`api/index.py`, `vercel.json`) in **demo mode** (`LINTEL_DEMO=1`, `backend/demo.py`).
 - The database lives in the function's `/tmp` and is wiped on cold starts, so accounts, projects and pilot sign-ups do **not** persist. Set `DATABASE_URL` to a Neon Postgres database for real use.
@@ -66,9 +63,8 @@ Live: **https://lintel-ruddy-five.vercel.app** (dashboard at `/`, marketing site
 - Chat needs `ANTHROPIC_API_KEY` set in the Vercel project's environment variables.
 - `.vercelignore` keeps local data, tests, the private study build and the cloned repos out of the upload.
 
-Deploy (build the marketing site first; the installed global CLI is too old for Vercel's API):
+Deploy (the installed global CLI is too old for Vercel's API):
 ```
-.venv\Scripts\python site\build.py
 npx vercel@latest deploy --prod
 ```
 For real use, move the database to a hosted Postgres and run the backend somewhere long-lived so plugins can stay connected.

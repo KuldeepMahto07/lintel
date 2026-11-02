@@ -4,6 +4,7 @@
   --paper: #f2f1eb;
   --paper-raised: #f7f6f1;
   --sheet: #fbfaf6;
+  --paper-2: #e9e8e2;   /* drawing areas: plan canvas, illustrations */
   --ink: #282828;
   --ink-2: rgba(40, 40, 40, .72);
   --ink-3: rgba(40, 40, 40, .64);
@@ -22,13 +23,14 @@
   --font-display: "Schibsted Grotesk", Arial, sans-serif;
   --font-body: "Schibsted Grotesk", Arial, sans-serif;
   --font-mono: "Geist Mono", ui-monospace, Consolas, monospace;
+  --mono-ls: -0.02em;
 
   /* space (4 px base) */
   --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px;
   --s-5: 24px; --s-6: 32px; --s-7: 48px; --s-8: 64px;
 
   /* layout */
-  --header-h: 64px;
+  --header-h: 74px;
   --gutter: 6px;
   --col-left: 300px;
   --col-right: 340px;

@@ -1,6 +1,7 @@
 // Projects: grid of cells with sort/filter, a card menu, and the first-run onboarding checklist.
 import { act, ago, app, clear, copy, drawer, empty, field, get, h, idx, loadError, patch, post, showErrors, skeleton } from "../lib.js";
 import { navigate } from "../main.js";
+import { elevation, planThumb } from "../art.js";
 
 export const title = () => "Projects";
 let state = { sort: localStorage.lintelSort || "synced", filter: "all" };
@@ -37,8 +38,8 @@ async function load(page) {
     clear(grid, list.length ? h("div", { class: "grid-cells" }, list.map((p, n) => card(p, n + 1, () => load(page))))
       : (projects.length || state.filter === "archived")
         ? empty("Nothing here", state.filter === "archived" ? "No archived projects." : "No projects match this filter.")
-        : empty("No projects yet", "Connect Rhino or try the sample clinic.", h("div", { class: "btn-row" },
-          app.can("member") && sampleButton(page), h("a", { class: "btn", href: "/app/settings/plugins", "data-link": "" }, "Connect Rhino →"))));
+        : h("div", { class: "art-band" }, elevation({ seed: 5 }), empty("No projects yet", "Connect Rhino or try the sample clinic.", h("div", { class: "btn-row" },
+          app.can("member") && sampleButton(page), h("a", { class: "btn", href: "/app/settings/plugins", "data-link": "" }, "Connect Rhino →")))));
   };
   const controls = h("div", { class: "filters" },
     h("div", { class: "seg", role: "group", "aria-label": "Filter" }, [["all", "All"], ["issues", "Has issues"], ["awaiting", "Awaiting approval"], ["archived", `Archived ${archived.length || ""}`]]
@@ -79,12 +80,14 @@ function card(p, n, reload) {
   const host = (p.host || "manual").toUpperCase();
   return h("div", { class: "card project-card" },
     h("a", { class: "card-link", href: `/app/p/${p.id}`, "data-link": "", style: { display: "contents" } },
-      h("div", { class: "card-top" }, h("span", { class: "label" }, host === "SAMPLE" ? "SAMPLE" : host), h("span", { class: "micro muted", style: { marginRight: "34px" } }, idx(n))),
-      h("h3", null, p.name),
+      h("div", { class: "card-top" }, h("span", { class: "label" }, host), h("span", { class: "micro muted", style: { marginRight: "34px" } }, idx(n))),
+      h("div", { class: "drawing" }, planThumb(p.thumb?.rooms || [], p.thumb?.flagged || [])),
+      h("div", { class: "name-row" }, h("h3", null, p.name),
+        h("span", { class: "sq", title: p.issues ? `${p.issues} issues` : "No issues" }, h("span", { class: p.issues && "hot" }))),
       h("div", { class: "meta" },
         h("span", { class: ["micro", p.issues ? "accent" : "muted"] }, p.issues ? `▣ ${p.issues} issue${p.issues === 1 ? "" : "s"}` : p.snapshot_at ? "0 issues" : "—"),
         h("span", { class: "micro" }, p.awaiting ? `${p.awaiting} awaiting` : "—"),
-        h("span", { class: "micro muted" }, p.snapshot_at ? `Synced ${ago(p.snapshot_at)}` : "Never synced"))),
+        h("span", { class: "micro muted full" }, p.snapshot_at ? `Synced ${ago(p.snapshot_at)}` : "Never synced"))),
     menuBtn, menu);
 }
 
@@ -157,7 +160,7 @@ function checklist(x, projects, page) {
   const done = items.filter((i) => i.done).length;
   const box = h("section", { class: "checklist", "aria-label": "Getting started" },
     h("div", { class: "intro" },
-      h("div", null, h("span", { class: "label muted" }, `Getting started · ${done} of ${items.length}`), h("h3", { style: { marginTop: "8px" } }, "Set up your sheet")),
+      h("div", null, h("span", { class: "label muted" }, `Getting started · ${done} of ${items.length}`), elevation({ seed: 3, markers: false }), h("h3", null, "Set up your sheet")),
       h("button", { class: "btn ghost compact", onclick: () => { localStorage[key] = "dismissed"; box.remove(); } }, "Dismiss")),
     h("ol", null, items.map((i) => h("li", { class: i.done && "done" },
       h("span", { class: "step-name" }, i.name),

@@ -1,6 +1,5 @@
-"""Lintel backend: the web app at /app, the JSON API at /api, the marketing site at /site.
+"""Lintel backend: the web app at /app and the JSON API at /api.
 Run: uvicorn backend.app:app --port 8002"""
-import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -28,26 +27,6 @@ app = FastAPI(title="Lintel", docs_url=None, redoc_url=None, lifespan=lifespan)
 for r in (auth_routes, firm, projects, rules, plugin):
     app.include_router(r.router)
 app.mount("/static", StaticFiles(directory=WEB), name="static")
-
-
-def _marketing_site():
-    """Built marketing site; built on the fly (into /tmp when the checkout is read-only, e.g. Vercel)."""
-    built = ROOT / "site" / "public"
-    if (built / "index.html").exists() or not (ROOT / "site" / "build.py").exists():
-        return built
-    import importlib.util
-    spec = importlib.util.spec_from_file_location("lintel_site_build", ROOT / "site" / "build.py")
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    try:
-        return mod.main(built)
-    except OSError:
-        return mod.main(Path(os.environ.get("TMPDIR", "/tmp")) / "lintel-site")
-
-
-SITE = _marketing_site()
-if SITE.exists():
-    app.mount("/site", StaticFiles(directory=SITE, html=True), name="site")
 
 
 # ---- errors in one shape ---------------------------------------------------
@@ -110,7 +89,14 @@ def shell():
 def index(panel: str | None = None):
     if panel:  # the Rhino plugin's WebView opens /?panel=<project key>
         return RedirectResponse(f"/app/p/{panel}?panel=1")
-    return RedirectResponse("/site/" if SITE.exists() else "/app")
+    return RedirectResponse("/app")
+
+
+@app.get("/site", include_in_schema=False)
+@app.get("/site/{rest:path}", include_in_schema=False)
+def old_site(rest: str = ""):
+    """The marketing site was removed; old links land in the app."""
+    return RedirectResponse("/app", status_code=301)
 
 
 for path in ("/app", "/app/{rest:path}", "/login", "/signup", "/reset", "/invite/{token}"):
