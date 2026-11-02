@@ -46,8 +46,22 @@ async def lifespan(_):
 
 app = FastAPI(title="Lintel", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=WEB), name="static")
-SITE = ROOT / "site" / "public"
-if SITE.exists():  # marketing site, built by site/build.py
+def _marketing_site():
+    """Built marketing site; built on the fly (into /tmp when the checkout is read-only, e.g. Vercel)."""
+    built = ROOT / "site" / "public"
+    if (built / "index.html").exists() or not (ROOT / "site" / "build.py").exists():
+        return built
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("lintel_site_build", ROOT / "site" / "build.py")
+    mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+    try:
+        return mod.main(built)
+    except OSError:
+        return mod.main(Path(os.environ.get("TMPDIR", "/tmp")) / "lintel-site")
+
+
+SITE = _marketing_site()
+if SITE.exists():  # marketing site, from site/build.py
     app.mount("/site", StaticFiles(directory=SITE, html=True), name="site")
 
 

@@ -18,7 +18,8 @@ NAV = [("assistant", "Assistant", "assistant.html"), ("dashboard", "Dashboard", 
        ("pricing", "Pricing", "pricing.html"), ("about", "About", "about.html")]
 
 
-def main():
+def main(out=None):
+    OUT = Path(out) if out else globals()["OUT"]
     layout = (HERE / "layout.html").read_text(encoding="utf-8")
     if OUT.exists():
         shutil.rmtree(OUT)
@@ -41,6 +42,7 @@ def main():
                 .replace("{{body}}", text[m.end():] if m else text))
         (OUT / page.name).write_text(html, encoding="utf-8")
         print("built", page.name)
+    return OUT
 
 
 if __name__ == "__main__":
