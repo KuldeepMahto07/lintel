@@ -30,6 +30,16 @@
     if (!window.gsap || reduce) { items.forEach((el) => (el.style.opacity = 1, el.style.transform = "none")); return; }
     gsap.registerPlugin(ScrollTrigger);
     const delay = root.classList.contains("seen") ? 0 : 1.2;
+    // Failsafe: if animation frames aren't running (background tab, power saving, embedded
+    // previews), show everything in its final state instead of leaving it invisible.
+    const startFrame = gsap.ticker.frame;
+    setTimeout(() => {
+      if (gsap.ticker.frame - startFrame > 5) return;
+      gsap.globalTimeline.progress(1);
+      items.forEach((el) => { el.style.opacity = 1; el.style.transform = "none"; });
+      document.querySelectorAll(".plan .wall").forEach((p) => { p.style.strokeDashoffset = 0; });
+      document.querySelectorAll(".step").forEach((s) => s.classList.add("on"));
+    }, 2600);
     items.forEach((el) => {
       const inHero = el.closest(".hero, .page-hero");
       gsap.to(el, {
