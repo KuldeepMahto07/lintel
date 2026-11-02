@@ -21,7 +21,7 @@ start.bat            → http://127.0.0.1:8002
 - Optional: `LINTEL_MODEL` (default `claude-sonnet-5-5`), `LINTEL_DB`, `LINTEL_TOKEN`.
 
 ### Marketing site
-`site/` is the public website: home with a live revision-cloud demo, assistant, dashboard, pricing, about, and a pilot sign-up form that posts to `/api/waitlist`. The design and copy are Lintel's own. Run `python siteuild.py` to build `site/public/` (start.bat does this), then open http://127.0.0.1:8002/site/. The output is static and can be deployed to any static host; the form needs the backend.
+`site/` is the public website: home with a live revision-cloud demo, assistant, dashboard, pricing, about, and a pilot sign-up form that posts to `/api/waitlist`. The design and copy are Lintel's own. Run `python site\build.py` to build `site/public/` (start.bat does this), then open http://127.0.0.1:8002/site/. The output is static and can be deployed to any static host; the form needs the backend.
 
 ### Try it without CAD
 ```
@@ -55,7 +55,7 @@ Live: **https://lintel-ruddy-five.vercel.app** (dashboard at `/`, marketing site
 
 Deploy (build the marketing site first; the installed global CLI is too old for Vercel's API):
 ```
-.venv\Scripts\python siteuild.py
+.venv\Scripts\python site\build.py
 npx vercel@latest deploy --prod
 ```
 For real use, move the database to a hosted Postgres and run the backend somewhere long-lived so plugins can stay connected.
