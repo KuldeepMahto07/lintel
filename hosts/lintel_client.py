@@ -9,6 +9,7 @@ and optionally begin()/commit()/rollback() to wrap a change set in one undo step
 """
 import json
 import os
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -16,10 +17,15 @@ DEFAULT_URL = os.environ.get("LINTEL_URL", "http://127.0.0.1:8002")
 
 
 def read_token(data_dir=None):
+    """Your personal plugin token (Lintel > Settings > Plugins): LINTEL_TOKEN, or saved in data/plugin-token.txt."""
     if os.environ.get("LINTEL_TOKEN"):
         return os.environ["LINTEL_TOKEN"]
     data_dir = data_dir or os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
-    with open(os.path.join(data_dir, "plugin-token.txt")) as f:
+    path = os.path.join(data_dir, "plugin-token.txt")
+    if not os.path.exists(path):
+        raise RuntimeError("No Lintel plugin token. Create one in Lintel > Settings > Plugins, then set LINTEL_TOKEN "
+                           "or save it in " + path)
+    with open(path) as f:
         return f.read().strip()
 
 
@@ -31,16 +37,22 @@ class Client:
     def _req(self, method, path, body=None):
         data = json.dumps(body).encode() if body is not None else None
         req = urllib.request.Request(self.url + path, data=data, method=method,
-                                     headers={"Content-Type": "application/json", "X-Lintel-Token": self.token})
+                                     headers={"Content-Type": "application/json", "Authorization": "Bearer " + self.token})
         with urllib.request.urlopen(req, timeout=15) as r:
-            return json.loads(r.read() or b"null")
+            body = r.read()
+            return json.loads(body) if body else None
 
     def push_snapshot(self, elements):
         return self._req("POST", "/api/plugin/snapshot",
                          {"project": self.project, "name": self.name, "host": self.host, "elements": elements})
 
     def pending(self):
-        return self._req("GET", "/api/plugin/pending?project=" + urllib.parse.quote(self.project))
+        try:
+            return self._req("GET", "/api/plugin/pending?project=" + urllib.parse.quote(self.project))
+        except urllib.error.HTTPError as e:
+            if e.code == 404:  # first sync: the snapshot pushed after this creates the project
+                return []
+            raise
 
     def report(self, changeset_id, ok, error=None):
         return self._req("POST", "/api/plugin/result",

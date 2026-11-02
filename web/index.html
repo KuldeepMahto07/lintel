@@ -4,18 +4,16 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Lintel</title>
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&family=Schibsted+Grotesk:wght@400;500;700&display=swap">
+  <link rel="stylesheet" href="/static/styles/tokens.css">
+  <link rel="stylesheet" href="/static/styles/components.css">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='1' y='1' width='14' height='14' fill='none' stroke='%23282828' stroke-width='2'/%3E%3Crect x='0' y='5' width='16' height='2' fill='%23fa3600'/%3E%3C/svg%3E">
 </head>
 <body>
-  <aside id="nav">
-    <div class="brand"><span class="mark"></span>Lintel</div>
-    <a href="#/projects" data-nav="projects">Projects</a>
-    <a href="#/rules" data-nav="rules">Firm rules</a>
-    <a href="#/audit" data-nav="audit">Audit log</a>
-    <div class="who">Signed in as <input id="actor" aria-label="Your name" spellcheck="false"></div>
-  </aside>
-  <main id="view" aria-live="polite"></main>
-  <div id="toast" role="status"></div>
-  <script src="/static/app.js"></script>
+  <div id="app"></div>
+  <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+  <script type="module" src="/static/js/main.js"></script>
 </body>
 </html>

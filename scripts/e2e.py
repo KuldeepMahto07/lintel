@@ -5,6 +5,7 @@
 
 Uses a throwaway database and port 8012; your real data/ is untouched.
 """
+import http.cookiejar
 import json
 import os
 import subprocess
@@ -16,15 +17,27 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "hosts"))
-PORT, TOKEN = 8012, "e2e-token"
+PORT = 8012
 URL = f"http://127.0.0.1:{PORT}"
+_jar = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+_csrf = {"v": ""}
 
 
 def call(method, path, body=None):
+    """A signed-in browser: session cookie plus the CSRF header on writes."""
     data = json.dumps(body).encode() if body is not None else None
-    req = urllib.request.Request(URL + path, data=data, method=method, headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=300) as r:
-        return json.loads(r.read())
+    req = urllib.request.Request(URL + path, data=data, method=method,
+                                 headers={"Content-Type": "application/json", "X-CSRF-Token": _csrf["v"]})
+    with _jar.open(req, timeout=300) as r:
+        raw = r.read()
+        return json.loads(raw) if raw else None
+
+
+def sign_up():
+    call("POST", "/api/auth/signup", {"name": "E2E Owner", "email": "owner@e2e.test", "password": "e2e-sheet-password",
+                                      "firm_name": "E2E Studio"})
+    _csrf["v"] = call("GET", "/api/me")["csrf"]
+    return call("POST", "/api/tokens", {"name": "e2e fixture host"})["token"]
 
 
 def check(label, cond):
@@ -36,19 +49,23 @@ def check(label, cond):
 def main():
     live = "--live" in sys.argv
     tmp = tempfile.mkdtemp(prefix="lintel-e2e-")
-    env = dict(os.environ, LINTEL_DB=os.path.join(tmp, "e2e.db"), LINTEL_TOKEN=TOKEN, LINTEL_URL=URL)
-    os.environ.update(LINTEL_TOKEN=TOKEN, LINTEL_URL=URL)
+    env = dict(os.environ, LINTEL_DB=os.path.join(tmp, "e2e.db"), LINTEL_URL=URL)
+    env.pop("LINTEL_DEMO", None)
+    os.environ.update(LINTEL_URL=URL)
     server = subprocess.Popen([sys.executable, "-m", "uvicorn", "backend.app:app", "--port", str(PORT), "--log-level", "warning"],
                               cwd=ROOT, env=env)
     try:
         for _ in range(50):
             try:
-                call("GET", "/api/rules")
+                call("GET", "/api/health")
                 break
             except OSError:
                 time.sleep(0.2)
+        print("0. Sign up, create a personal plugin token")
+        token = sign_up()
+        check("token issued", token.startswith("lnt_"))
         from fixture_host import FixtureHost
-        host = FixtureHost(str(ROOT / "samples" / "clinic.json"), url=URL, token=TOKEN, fresh=True)
+        host = FixtureHost(str(ROOT / "samples" / "clinic.json"), url=URL, token=token, fresh=True)
 
         print("1. Observe: host pushes the model")
         host.sync()
@@ -60,12 +77,12 @@ def main():
                "bedroom-area:R-oncall"} <= ids)
 
         print("2. Advise: propose a fix, nothing changes yet")
-        cid = call("POST", "/api/projects/sample-clinic/issues/door-clear-width:D-03/fix", {"actor": "e2e"})["changeset"]
+        cid = call("POST", "/api/projects/sample-clinic/issues/door-clear-width:D-03/fix")["changeset"]
         host.sync()
         check("door still 760 mm before approval", host.get("D-03", "clear_width_mm") == 760)
 
         print("3. Act: approve, host applies in one undo step")
-        call("POST", f"/api/changesets/{cid}/approve", {"actor": "e2e"})
+        call("POST", f"/api/changesets/{cid}/approve")
         applied = host.sync()
         check("host applied the change set", applied == [(cid, True, None)])
         check("door now 813 mm in the host model", host.get("D-03", "clear_width_mm") == 813)
@@ -76,18 +93,18 @@ def main():
 
         print("4. Reject and drift guard")
         r = call("POST", "/api/projects/sample-clinic/issues/door-clear-width:D-05/fix", {})["changeset"]
-        call("POST", f"/api/changesets/{r}/reject", {"actor": "e2e"})
+        call("POST", f"/api/changesets/{r}/reject")
         host.sync()
         check("rejected change never reaches the host", host.get("D-05", "clear_width_mm") == 711)
         s = call("POST", "/api/projects/sample-clinic/issues/stair-tread-min:S-01/fix", {})["changeset"]
-        call("POST", f"/api/changesets/{s}/approve", {"actor": "e2e"})
+        call("POST", f"/api/changesets/{s}/approve")
         host.set("S-01", "tread_mm", 260)  # someone edits the model after approval
         refused = host.sync()
         check("drifted change set refused", refused and refused[0][1] is False and "expected 254" in refused[0][2])
         check("tread untouched by Lintel", host.get("S-01", "tread_mm") == 260)
 
         print("5. Revert an applied change")
-        rv = call("POST", f"/api/changesets/{cid}/revert", {"actor": "e2e"})["changeset"]
+        rv = call("POST", f"/api/changesets/{cid}/revert")["changeset"]
         host.sync()
         check("door back to 760 mm", host.get("D-03", "clear_width_mm") == 760)
         statuses = {c["id"]: c["status"] for c in call("GET", "/api/projects/sample-clinic")["changesets"]}
@@ -96,14 +113,15 @@ def main():
 
         print("6. Learn: a firm standard becomes a rule")
         call("POST", "/api/rules", {"name": "Firm door width", "kind": "min", "applies_to": "door", "prop": "clear_width_mm",
-                                    "value": 900, "unit": "mm", "ref": "Firm standard", "fixable": "true", "actor": "e2e"})
+                                    "value": 900, "unit": "mm", "ref": "Firm standard", "fixable": "true"})
         d = call("GET", "/api/projects/sample-clinic")
         check("firm rule now flags 813/864 mm doors", sum(i["rule_name"] == "Firm door width" for i in d["issues"]) >= 4)
 
         print("7. Audit log")
-        actions = [a["action"] for a in call("GET", "/api/audit")]
+        actions = [a["action"] for a in call("GET", "/api/audit?project=sample-clinic")["entries"]]
+        actions += [a["action"] for a in call("GET", "/api/audit?action=rule")["entries"]]
         for a in ("model.snapshot", "changeset.proposed", "changeset.approved", "changeset.applied", "changeset.rejected",
-                  "changeset.failed", "changeset.revert_requested", "rule.saved"):
+                  "changeset.failed", "changeset.revert_requested", "rule.created"):
             check(f"logged {a}", a in actions)
 
         if live:
