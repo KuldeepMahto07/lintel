@@ -3,14 +3,13 @@
 A firm can load the sample clinic from onboarding. No CAD app is attached to it, so the
 sample host plays the plugin's part: an approved change set is applied to the stored model
 straight away, with the same drift guard as a real host, and logged as host:sample.
-LINTEL_DEMO=1 (the public demo deployment) does the same for every project.
 """
 import copy
 import json
 import os
 from pathlib import Path
 
-from . import store
+from . import geometry, store
 
 SAMPLE = Path(__file__).resolve().parent.parent / "samples" / "clinic.json"
 SAMPLE_HOST = "sample"
@@ -39,13 +38,17 @@ def apply_now(fid, cid):
     by_id = {e["id"]: e for e in elements}
     for o in cs["ops"]:
         el = by_id.get(o["element"])
-        current = el and el["props"].get(o["prop"])
+        current = el and el["props"].get(o["prop"], 0 if o["prop"] == "offset_mm" else None)
         if el is None or (o.get("from") is not None and str(current) != str(o["from"]) and not _close(current, o["from"])):
             service.host_result(fid, cid, False, f"{o['element']} changed since the proposal; re-run checks", SAMPLE_HOST,
                                 actor_name="Sample host")
             return
     for o in cs["ops"]:
-        by_id[o["element"]]["props"][o["prop"]] = o["to"]
+        if o["prop"] == "offset_mm":  # a wall move reshapes the rooms on both sides
+            elements = geometry.move_wall(elements, o["element"], float(o["to"]))
+            by_id = {e["id"]: e for e in elements}
+        else:
+            by_id[o["element"]]["props"][o["prop"]] = o["to"]
     store.save_snapshot(cs["project_id"], SAMPLE_HOST, elements)
     service.host_result(fid, cid, True, None, SAMPLE_HOST, actor_name="Sample host")
 

@@ -112,8 +112,11 @@ class Workspace {
     const waiting = d.changesets.some((c) => c.status === "approved" && now - c.updated_at > 120);
     const pluginQuiet = !d.plugin_seen_at || now - d.plugin_seen_at > 120;
     const sampleHost = (d.project.host || "") === "sample";
-    clear(this.notice, waiting && pluginQuiet && !sampleHost
-      ? h("div", { class: "banner accent", role: "status" }, h("span", { class: "grow" }, "No plugin connected. Approved changes will apply when Rhino reconnects."),
+    clear(this.notice, d.read_only
+      ? h("div", { class: "banner accent", role: "status" }, h("span", { class: "grow" }, "Read-only on the Free plan, which includes one project. You can still view issues and history."),
+        app.can("owner") && h("a", { class: "btn ghost compact", href: "/app/settings/billing", "data-link": "" }, "See plans →"))
+      : waiting && pluginQuiet && !sampleHost
+      ? h("div", { class: "banner accent", role: "status" }, h("span", { class: "grow" }, "No plugin connected. Approved changes will apply when your CAD app reconnects."),
         h("a", { class: "btn ghost compact", href: "/app/settings/plugins", "data-link": "" }, "Plugin setup →"))
       : null);
   }
@@ -222,10 +225,10 @@ class Workspace {
   modelList() {
     const d = this.data;
     const COLS = {
-      room: [["name", "Name"], ["use", "Use"], ["area_m2", "Area m²"], ["travel", "Travel m"]],
+      room: [["name", "Name"], ["use", "Use"], ["area_m2", "Area m²"], ["occupant_load", "People"], ["travel", "Travel m"]],
       door: [["name", "Name"], ["clear_width_mm", "Width mm"], ["exit", "Exit"]],
       stair: [["name", "Name"], ["riser_mm", "Riser"], ["tread_mm", "Tread"], ["risers", "Risers"]],
-      wall: [["length_mm", "Length mm"], ["thickness_mm", "Thick mm"]],
+      wall: [["name", "Name"], ["length_mm", "Length mm"], ["thickness_mm", "Thick mm"]],
     };
     const flagged = new Set(d.issues.map((i) => i.element));
     const search = h("input", { class: "input", placeholder: "Search elements  /", "aria-label": "Search elements", style: { height: "32px" } });

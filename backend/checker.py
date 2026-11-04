@@ -4,6 +4,11 @@ A rule is the firm's own requirement: a numeric parameter plus a reference to th
 section it was taken from. No code text is stored. Kinds:
   min / max  - compare one element property against `value`
   egress     - longest travel distance from any room corner to the nearest exit door
+  load       - a room use's occupant load factor: `value` m² of floor per person (0 = not counted)
+  capacity   - exit width per occupant: the exit doors' total clear width must reach
+               `value` mm x the floor's occupant load
+Each room gets an occupant_load from the load factors before the other rules run, so min/max rules
+can also test it.
 """
 import heapq
 import math
@@ -21,13 +26,36 @@ def _name(el):
     return el["props"].get("name") or el["id"]
 
 
+def with_loads(elements, rules):
+    """A copy of the model with occupant_load (people) on every room a load factor covers.
+    A factor for the room's use wins over a firm-wide one (a load rule with no `where`)."""
+    loads = [r for r in rules if r.get("kind") == "load" and r.get("status", "active") == "active"]
+    if not loads:
+        return elements
+    out = []
+    for el in elements:
+        if el["type"] == "room" and el["props"].get("area_m2") is not None:
+            hit = (next((r for r in loads if r.get("where") and _matches(el, r)), None)
+                   or next((r for r in loads if not r.get("where")), None))
+            if hit:
+                f = float(hit["value"])
+                el = dict(el, props=dict(el["props"], occupant_load=math.ceil(float(el["props"]["area_m2"]) / f - 1e-9) if f > 0 else 0,
+                                         load_factor_m2=f, load_ref=hit.get("ref", "")))
+        out.append(el)
+    return out
+
+
 def check(elements, rules):
+    elements = with_loads(elements, rules)
     issues = []
     for rule in rules:
-        if rule.get("status", "active") != "active":
+        if rule.get("status", "active") != "active" or rule["kind"] == "load":
             continue
         if rule["kind"] == "egress":
             issues += _check_egress(elements, rule)
+            continue
+        if rule["kind"] == "capacity":
+            issues += _check_capacity(elements, rule)
             continue
         for el in elements:
             if not _matches(el, rule):
@@ -114,6 +142,23 @@ def _check_egress(elements, rule):
     return issues
 
 
+def _check_capacity(elements, rule):
+    people = sum(int(e["props"].get("occupant_load") or 0) for e in elements if e["type"] == "room")
+    exits = [e for e in elements if e["type"] == "door" and e["props"].get("exit")]
+    if not people or not exits:
+        return []
+    have = sum(float(e["props"].get("clear_width_mm") or 0) for e in exits)
+    need = round(people * float(rule["value"]), 1)
+    if have >= need - 1e-6:
+        return []
+    narrow = min(exits, key=lambda e: float(e["props"].get("clear_width_mm") or 0))
+    widen_to = math.ceil((float(narrow["props"].get("clear_width_mm") or 0) + need - have) / 10.0) * 10
+    i = _issue(rule, narrow, have, f"Exit doors give {have:g} mm in total for {people} occupants; at "
+                                   f"{float(rule['value']):g} mm each they need {need:g} mm. Widen {_name(narrow)} "
+                                   f"to {widen_to:g} mm or add an exit.", fixable=bool(rule.get("fixable", True)))
+    return [dict(i, kind="min", required=need, prop="clear_width_mm", unit="mm", fix_to=widen_to, occupants=people)]
+
+
 # ---- fixes -----------------------------------------------------------------
 
 def fix_ops(issue, elements):
@@ -121,6 +166,8 @@ def fix_ops(issue, elements):
     if not issue["fixable"]:
         return []
     el = next(e for e in elements if e["id"] == issue["element"])
+    if issue.get("fix_to") is not None:  # exit capacity: widen the narrowest exit by the shortfall
+        return [op(el, issue["prop"], issue["fix_to"])]
     prop, target = issue["prop"], float(issue["required"])
     if el["type"] == "stair" and prop == "riser_mm" and el["props"].get("total_rise_mm"):
         total = float(el["props"]["total_rise_mm"])

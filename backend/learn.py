@@ -126,6 +126,9 @@ def suggest(fid):
 
 
 def dismiss(fid, rule):
-    """An admin discarded a learned suggestion: don't offer that property again."""
+    """An admin discarded a learned suggestion (don't offer that property again) or deleted a starter
+    rule (don't add it back when new starter rules are rolled out)."""
     if rule.get("source") == "learned" and rule.get("status") == "proposed":
         store.dismiss_suggestion(fid, rule["id"].removeprefix("learned-"))
+    elif rule.get("source") == "starter":
+        store.dismiss_suggestion(fid, "starter:" + rule["id"])

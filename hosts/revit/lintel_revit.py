@@ -12,7 +12,8 @@ Revit is a BIM app, so Lintel reads its native objects:
   Doors   door instances: width (or a "Lintel Clear Width" length parameter), the rooms on each
           side, and exit = a "Lintel Exit" yes/no parameter, otherwise a door with no room on one side.
   Stairs  stairs: actual riser height, tread depth, number of risers, run width, total height.
-  Walls   wall location lines and thickness.
+  Walls   wall location lines and thickness. An approved wall move shifts the wall at right angles;
+          Revit then re-bounds the rooms on both sides and carries the doors hosted in it.
 Element ids are Revit UniqueIds.
 
 Approved change sets run inside one Revit transaction group, so one Ctrl+Z undoes a Lintel edit.
@@ -30,9 +31,9 @@ clr.AddReference("RevitAPI")
 clr.AddReference("RevitAPIUI")
 clr.AddReference("System.Windows.Forms")
 import System  # noqa: E402
-from Autodesk.Revit.DB import (BuiltInCategory, BuiltInParameter, FailureProcessingResult,  # noqa: E402
-                               FilteredElementCollector, IFailuresPreprocessor, SpatialElementBoundaryOptions,
-                               StorageType, Transaction, TransactionGroup)
+from Autodesk.Revit.DB import (XYZ, BuiltInCategory, BuiltInParameter, ElementTransformUtils,  # noqa: E402
+                               FailureProcessingResult, FilteredElementCollector, IFailuresPreprocessor,
+                               SpatialElementBoundaryOptions, StorageType, Transaction, TransactionGroup, Wall)
 from Autodesk.Revit.DB.Architecture import Room, Stairs, StairsEditScope  # noqa: E402
 from Autodesk.Revit.UI import ExternalEvent, IExternalEventHandler  # noqa: E402
 
@@ -163,6 +164,10 @@ def _element(doc, eid):
 
 def get(doc, eid, prop):
     el = _element(doc, eid)
+    if isinstance(el, Wall):
+        if prop != "offset_mm":
+            raise KeyError(prop)
+        return 0  # wall moves are relative to where the wall is now
     if isinstance(el, Room):
         e = _room(el, SpatialElementBoundaryOptions())
     elif isinstance(el, Stairs):
@@ -190,6 +195,18 @@ def set_(doc, eid, prop, value):
     el = _element(doc, eid)
     if isinstance(el, Stairs):
         return _set_stair(doc, el, prop, float(value))
+    if isinstance(el, Wall) and prop == "offset_mm":
+        c = el.Location.Curve
+        d = (c.GetEndPoint(1) - c.GetEndPoint(0)).Normalize()
+        t = Transaction(doc, "Lintel: move wall")
+        t.Start()
+        try:  # + is left of start -> end, like the server; Revit moves hosted doors and re-bounds rooms itself
+            ElementTransformUtils.MoveElement(doc, el.Id, XYZ(-d.Y, d.X, 0) * (float(value) / FT))
+            t.Commit()
+        except Exception:
+            t.RollBack()
+            raise
+        return
     t = Transaction(doc, "Lintel: %s" % prop)
     t.Start()
     try:

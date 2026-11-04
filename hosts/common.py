@@ -81,7 +81,7 @@ def stair(eid, name, location_mm, riser_mm=None, tread_mm=None, risers=None, wid
 
 
 def wall(eid, start_mm, end_mm, thickness_mm=None):
-    props = {"length_mm": round(math.hypot(end_mm[0] - start_mm[0], end_mm[1] - start_mm[1]), 1)}
+    props = {"length_mm": round(math.hypot(end_mm[0] - start_mm[0], end_mm[1] - start_mm[1]), 1), "offset_mm": 0}
     if thickness_mm is not None:
         props["thickness_mm"] = round(float(thickness_mm), 1)
     return {"id": eid, "type": "wall", "props": props, "geom": {"start": list(start_mm), "end": list(end_mm)}}

@@ -49,8 +49,10 @@ def plugin_snapshot(body: dict = Body(...), c: Ctx = Depends(auth.plugin)):
             pid = store.create_project(c.fid, str(body.get("name") or ref), host, ext_key=ref)
             c.audit(pid, "project.created", pid, {"name": body.get("name") or ref, "host": host})
             p = store.project(c.fid, pid)
-        elif p["host"] != host:
-            store.update_project(c.fid, p["id"], host=host)
+        else:
+            service.require_writable(c.firm, p["id"])
+            if p["host"] != host:
+                store.update_project(c.fid, p["id"], host=host)
         store.save_snapshot(p["id"], host, elements)
         c.audit(p["id"], "model.snapshot", "", {"elements": len(elements)})
     found = service.issues(c.fid, p["id"])

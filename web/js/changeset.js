@@ -1,7 +1,7 @@
 // The change-set card: accent header strip, before (struck) → after (bold) diff, decisions, comments.
 import { act, ago, app, chip, clear, clock, confirm, get, h, num, post, titleCase, toast } from "./lib.js";
 
-const PROP_UNITS = { clear_width_mm: "mm", riser_mm: "mm", tread_mm: "mm", width_mm: "mm", area_m2: "m²" };
+const PROP_UNITS = { clear_width_mm: "mm", riser_mm: "mm", tread_mm: "mm", width_mm: "mm", area_m2: "m²", offset_mm: "mm" };
 
 export function fmtValue(prop, v) {
   if (v === null || v === undefined) return "—";

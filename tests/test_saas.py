@@ -270,7 +270,9 @@ def test_free_plan_limits(sample):
                                           "value": 900}).status_code == 402
     assert owner.post("/api/invites", json={"email": "x@y.test", "role": "member"}).status_code == 402
     assert owner.post("/api/invites", json={"email": "x@y.test", "role": "viewer"}).status_code == 201  # viewers are free
-    assert len(owner.get(P).json()["issues"]) == 9  # data kept
+    found = owner.get(P).json()["issues"]
+    assert len(found) == 8 and not any(i["rule"] == "firm-exam-room" for i in found)  # data kept; the firm rule is off on Free
+    assert owner.get("/api/rules").json()  # ...but still stored, and back on upgrade
 
 
 def test_two_approvals_needs_firm_plan_then_two_people(sample, invite):

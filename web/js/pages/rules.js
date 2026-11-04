@@ -42,6 +42,8 @@ function head(page, n = "", reload) {
 
 function checkText(r) {
   if (r.kind === "egress") return `travel ≤ ${measure(r.value / 1000, "m")}`;
+  if (r.kind === "load") return r.value ? `1 person per ${measure(r.value, "m²")}` : "not counted";
+  if (r.kind === "capacity") return `exits ≥ ${measure(r.value, "mm")} per person`;
   return `${r.prop || ""} ${r.kind === "min" ? "≥" : "≤"} ${measure(r.value, r.unit)}`;
 }
 
@@ -93,11 +95,12 @@ function edit(r, reload) {
   const fixable = h("input", { type: "checkbox", name: "fixable", checked: !!v.fixable });
   const form = h("form", { class: "form-grid", novalidate: true },
     h("div", { class: "full" }, field("Name", inp("name", v.name, { maxlength: 120, autofocus: true }))),
-    field("Check type", sel("kind", [["min", "Minimum"], ["max", "Maximum"], ["egress", "Travel distance"]], v.kind)),
+    field("Check type", sel("kind", [["min", "Minimum"], ["max", "Maximum"], ["egress", "Travel distance"],
+      ["load", "Occupant load factor (m² per person)"], ["capacity", "Exit capacity (mm per person)"]], v.kind)),
     field("Applies to", sel("applies_to", [["door", "Doors"], ["room", "Rooms"], ["stair", "Stairs"]], v.applies_to)),
     field("Only where", inp("where", where, { placeholder: "use=exam" }), "key=value; separate with ;"),
-    field("Property", inp("prop", v.prop, { placeholder: "clear_width_mm" }), "Not needed for travel distance"),
-    field("Value", inp("value", v.kind === "egress" && v.value ? v.value : v.value, { inputmode: "decimal" }), "Travel distance in mm"),
+    field("Property", inp("prop", v.prop, { placeholder: "clear_width_mm" }), "Only for minimum and maximum checks"),
+    field("Value", inp("value", v.value, { inputmode: "decimal" }), "Travel distance in mm · load in m² per person (0 = not counted) · capacity in mm per person"),
     field("Unit", inp("unit", v.unit, { placeholder: "mm" })),
     h("div", { class: "full" }, field("Reference", inp("ref", v.ref, { placeholder: "IBC §1010.1.1 (verify against your adopted edition)" }), "A section number, never code text")),
     field("Severity", sel("severity", [["error", "Error"], ["warning", "Warning"]], v.severity)),
@@ -150,7 +153,7 @@ function importDrawer(reload) {
   }
   const d = drawer({
     title: "Import rules",
-    body: [h("p", { class: "small muted" }, "Columns: name, kind (min/max/egress), applies_to (door/room/stair), where, prop, value, unit, ref, severity, fixable. Every row must pass before anything is saved."),
+    body: [h("p", { class: "small muted" }, "Columns: name, kind (min/max/egress/load/capacity), applies_to (door/room/stair), where, prop, value, unit, ref, severity, fixable. Every row must pass before anything is saved."),
       h("div", { class: "btn-row", style: { marginBottom: "12px" } }, file,
         h("button", { class: "btn ghost compact", onclick: () => { ta.value = CSV_TEMPLATE; check(); } }, "Use the template")),
       ta, preview],

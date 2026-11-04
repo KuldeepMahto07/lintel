@@ -7,7 +7,7 @@ from pathlib import Path
 from fastapi import APIRouter, Body, Depends, Request
 from fastapi.responses import JSONResponse
 
-from .. import auth, learn, plans, store
+from .. import auth, learn, plans, service, store
 from ..auth import Ctx
 from ..errors import ApiError, invalid, not_found
 
@@ -27,11 +27,15 @@ def clean_rule(r):
     name = str(r.get("name") or "").strip()
     if not name:
         errs["name"] = "Required."
-    if r.get("kind") not in ("min", "max", "egress"):
-        errs["kind"] = "Use min, max or egress."
+    if r.get("kind") not in ("min", "max", "egress", "load", "capacity"):
+        errs["kind"] = "Use min, max, egress, load or capacity."
     if r.get("applies_to") not in ("room", "door", "stair"):
         errs["applies_to"] = "Use room, door or stair."
-    if r.get("kind") != "egress" and not r.get("prop"):
+    elif r.get("kind") == "load" and r.get("applies_to") != "room":
+        errs["applies_to"] = "Occupant load factors apply to rooms."
+    elif r.get("kind") == "capacity" and r.get("applies_to") != "door":
+        errs["applies_to"] = "Exit capacity applies to doors."
+    if r.get("kind") in ("min", "max") and not r.get("prop"):
         errs["prop"] = "Required for min and max rules."
     try:
         value = float(r.get("value"))
@@ -64,6 +68,7 @@ def _needs_custom(c, rule):
 
 @router.get("/rules")
 def list_rules(c: Ctx = Depends(auth.current)):
+    service.add_new_starter_rules(c.fid)
     return store.rules(c.fid)
 
 

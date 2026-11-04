@@ -18,6 +18,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from lintel_client import Client, sync_once  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT)  # backend.geometry, for wall moves
 
 
 class FixtureHost:
@@ -44,9 +45,13 @@ class FixtureHost:
         return copy.deepcopy(self.model["elements"])
 
     def get(self, eid, prop):
-        return self._el(eid)["props"].get(prop)
+        return self._el(eid)["props"].get(prop, 0 if prop == "offset_mm" else None)
 
     def set(self, eid, prop, value):
+        if prop == "offset_mm":  # a wall move reshapes the rooms on both sides
+            from backend import geometry
+            self.model["elements"] = geometry.move_wall(self.model["elements"], eid, float(value))
+            return
         self._el(eid)["props"][prop] = value
 
     # one undo record per change set, like Rhino's BeginUndoRecord/EndUndoRecord

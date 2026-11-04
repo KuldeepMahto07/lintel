@@ -7,7 +7,8 @@
 #   Lintel Doors   component instances. Attributes: name, clear_width_mm, exit (true/false).
 #                  Without clear_width_mm the width is the component's width.
 #   Lintel Stairs  groups or components. Attributes: name, riser_mm, tread_mm, risers, width_mm, total_rise_mm.
-#   Lintel Walls   edges.
+#   Lintel Walls   edges. An approved wall move slides the edge at right angles; the room faces
+#                  that share it stretch or shrink with it.
 # Element ids are persistent ids. Approved change sets run as one SketchUp operation, so one
 # Edit > Undo reverses a Lintel edit. While connected Lintel re-checks every two seconds.
 require 'json'
@@ -163,7 +164,7 @@ module Lintel
       when 'wall'
         next unless e.is_a?(Sketchup::Edge)
         els << { 'id' => id, 'type' => 'wall', 'geom' => { 'start' => pt(e.start.position), 'end' => pt(e.end.position) },
-                 'props' => { 'length_mm' => (e.length * MM).round(1) } }
+                 'props' => { 'length_mm' => (e.length * MM).round(1), 'offset_mm' => 0 } }
       end
     end
     link_doors(els)
@@ -199,6 +200,17 @@ module Lintel
 
   def self.set(id, prop, value)
     e = entity(id) or raise "element #{id} no longer exists"
+    if prop == 'offset_mm' # move the wall edge at right angles; the faces on both sides stretch with it
+      raise 'only edges on the Lintel Walls tag can move' unless e.is_a?(Sketchup::Edge)
+      d = e.end.position - e.start.position
+      d.z = 0
+      d.normalize!
+      v = Geom::Vector3d.new(-d.y, d.x, 0)
+      v.length = value.to_f.abs / MM
+      v.reverse! if value.to_f.negative?
+      e.parent.entities.transform_entities(Geom::Transformation.translation(v), [e])
+      return
+    end
     if prop == 'clear_width_mm' && e.is_a?(Sketchup::ComponentInstance)
       old = door_width(e, attrs(e))
       e.transformation = e.transformation * Geom::Transformation.scaling(value.to_f / old, 1, 1) if old.positive?

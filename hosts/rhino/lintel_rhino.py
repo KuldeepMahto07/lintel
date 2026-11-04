@@ -98,6 +98,7 @@ def snapshot():
             curves[str(obj.Id)] = g
         elif kind == "wall" and isinstance(g, Rhino.Geometry.Curve):
             props["length_mm"] = round(g.GetLength() * s, 1)
+            props["offset_mm"] = 0  # wall moves are relative to where the wall is now
             geom["start"] = [g.PointAtStart.X * s, g.PointAtStart.Y * s]
             geom["end"] = [g.PointAtEnd.X * s, g.PointAtEnd.Y * s]
         else:
@@ -135,12 +136,53 @@ def _obj(eid):
 
 
 def get(eid, prop):
+    if prop == "offset_mm":
+        _obj(eid)
+        return 0
     return _usertext(_obj(eid)).get(prop)
+
+
+def _move_wall(doc, wall, delta_mm):
+    """Move a wall at right angles, dragging the room outline points on it and the doors in it."""
+    s = _scale(doc)
+    a, b = wall.Geometry.PointAtStart, wall.Geometry.PointAtEnd
+    d = Rhino.Geometry.Vector3d(b.X - a.X, b.Y - a.Y, 0)
+    d.Unitize()
+    v = Rhino.Geometry.Vector3d(-d.Y, d.X, 0) * (float(delta_mm) / s)  # + is left of start -> end, like the server
+    line = Rhino.Geometry.Line(a, b)
+    move = Rhino.Geometry.Transform.Translation(v)
+    for o in list(doc.Objects):
+        kind = _layer_type(doc, o)
+        if o.IsDeleted or o.Id == wall.Id or kind not in ("room", "door"):
+            continue
+        g = o.Geometry
+        if kind == "room" and isinstance(g, Rhino.Geometry.Curve):
+            ok, pl = g.TryGetPolyline()
+            if not ok:
+                continue
+            pts = list(pl)
+            closed = len(pts) > 1 and pts[0].DistanceTo(pts[-1]) < 1e-6
+            hits = [i for i, p in enumerate(pts) if line.DistanceTo(p, True) <= 1.0 / s]
+            if len([i for i in hits if not (closed and i == len(pts) - 1)]) < 2:
+                continue
+            for i in hits:
+                pts[i] = pts[i] + v
+            doc.Objects.Replace(o.Id, Rhino.Geometry.PolylineCurve(pts))
+        elif kind == "door":
+            if isinstance(g, Rhino.Geometry.InstanceReferenceGeometry):
+                p = Rhino.Geometry.Point3d(g.Xform.M03, g.Xform.M13, g.Xform.M23)
+            else:
+                p = g.GetBoundingBox(True).Center
+            if line.DistanceTo(p, True) <= 300.0 / s:
+                doc.Objects.Transform(o.Id, move, True)
+    doc.Objects.Transform(wall.Id, move, True)
 
 
 def set_(eid, prop, value):
     doc = _doc()
     obj = _obj(eid)
+    if prop == "offset_mm":
+        return _move_wall(doc, obj, value)
     old = _usertext(obj).get(prop)
     attrs = obj.Attributes.Duplicate()
     attrs.SetUserString(prop, str(value))

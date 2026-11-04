@@ -446,6 +446,46 @@
      6000
     ]
    }
+  },
+  {
+   "id": "W-08",
+   "type": "wall",
+   "props": {
+    "name": "Exam 1 / Exam 2 partition",
+    "length_mm": 4000,
+    "thickness_mm": 100,
+    "height_mm": 3000
+   },
+   "geom": {
+    "start": [
+     5000,
+     1000
+    ],
+    "end": [
+     5000,
+     5000
+    ]
+   }
+  },
+  {
+   "id": "W-09",
+   "type": "wall",
+   "props": {
+    "name": "Exam 1 back wall",
+    "length_mm": 3000,
+    "thickness_mm": 100,
+    "height_mm": 3000
+   },
+   "geom": {
+    "start": [
+     5000,
+     4400
+    ],
+    "end": [
+     2000,
+     4400
+    ]
+   }
   }
  ]
 }

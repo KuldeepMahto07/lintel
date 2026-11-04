@@ -216,6 +216,8 @@ async function plugins(p) {
 }
 
 // ---- billing ---------------------------------------------------------------
+let billEvery = "month"; // the Monthly / Yearly switch on the plan cards
+
 async function billing(p) {
   const d = await get("/api/billing");
   const f = d.firm, owner = app.can("owner");
@@ -223,12 +225,18 @@ async function billing(p) {
   const pct = cap ? Math.min(100, Math.round((usage / cap) * 100)) : 0;
   const qs = new URLSearchParams(location.search);
   const upgraded = qs.get("upgraded"), toppedUp = qs.get("topup");
+  const yearly = billEvery === "year";
+  const priceOf = (key) => {
+    const pr = d.prices[key];
+    const min = pr.min_seats ? ` · min ${pr.min_seats} seats` : "";
+    return yearly ? [`$${pr.year}`, `per seat / year · 2 months free${min}`] : [`$${pr.month}`, `per seat / month${min}`];
+  };
   const planCard = (key, name, price, sub, items) => {
     const current = f.plan === key;
     const btn = owner && !current && key !== "free" && h("button", { class: "btn primary", onclick: async (e) => {
-      const out = await act(e.currentTarget, () => post("/api/billing/checkout", { plan: key, interval: "month", seats: Math.max(f.seats_used, key === "firm" ? 3 : 1) }));
+      const out = await act(e.currentTarget, () => post("/api/billing/checkout", { plan: key, interval: billEvery, seats: Math.max(f.seats_used, key === "firm" ? 3 : 1) }));
       if (out?.url) location.href = out.url;
-    } }, `Upgrade to ${name} →`);
+    } }, `Upgrade to ${name}${yearly ? " yearly" : ""} →`);
     return h("div", { class: ["card", current && "selected"] },
       h("div", { class: "card-top" }, h("span", { class: "label" }, name), current && h("span", { class: "chip applied" }, "✓ Current")),
       h("div", { class: "price" }, price), h("span", { class: "micro muted" }, sub),
@@ -255,10 +263,14 @@ async function billing(p) {
       } }, "Manage billing →")),
     h("section", null, h("h3", null, "Plans"),
       !d.configured && h("div", { class: "notice", style: { marginBottom: "16px" } }, "Online payments aren't set up on this server yet. Contact us to upgrade."),
+      h("div", { class: "btn-row", role: "group", "aria-label": "Billing period", style: { marginBottom: "16px" } },
+        [["month", "Monthly"], ["year", "Yearly · 2 months free"]].map(([k, label]) => h("button", {
+          class: ["btn", "compact", billEvery === k ? "primary" : "ghost"], "aria-pressed": String(billEvery === k),
+          onclick: () => { billEvery = k; billing(p); } }, label))),
       h("div", { class: "plans" },
         planCard("free", "Free", "$0", "1 member", ["1 project", "Checks, plan view, propose fixes", "Starter rules", "20 assistant messages / month"]),
-        planCard("pro", "Pro", "$39", "per seat / month · $390 / year", ["Unlimited projects", "Apply approved changes in Rhino", "Custom rules and project overrides", "300 assistant messages per seat"]),
-        planCard("firm", "Firm", "$99", "per seat / month · min 3 seats", ["Everything in Pro", "Two-approval mode", "Audit CSV export", "1 000 assistant messages per seat"])),
+        planCard("pro", "Pro", ...priceOf("pro"), ["Unlimited projects", "Apply approved changes in your CAD app", "Custom rules and project overrides", "300 assistant messages per seat"]),
+        planCard("firm", "Firm", ...priceOf("firm"), ["Everything in Pro", "Two-approval mode", "Audit CSV export", "1 000 assistant messages per seat"])),
       !owner && h("p", { class: "micro muted", style: { marginTop: "12px" } }, "Only the firm owner can change the plan.")));
   renderBanners();
 }

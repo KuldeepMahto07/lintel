@@ -55,12 +55,20 @@ def create_sample(c: Ctx = Depends(auth.need("member"))):
 def get_project(ref: str, c: Ctx = Depends(auth.current)):
     p = _project(c, ref)
     snap = store.latest_snapshot(p["id"])
-    els = snap["elements"] if snap else []
+    els = service.elements_with_loads(c.fid, p["id"]) if snap else []
     return {"project": p, "snapshot_at": snap and snap["taken_at"], "host": snap and snap["host"],
             "elements": els, "issues": service.issues(c.fid, p["id"]), "egress": checker.egress_distances(els),
             "changesets": store.changesets(c.fid, p["id"]), "plugin_seen_at": p["last_plugin_poll_at"],
             "rules": service.rules_for(c.fid, p["id"]), "overrides": store.overrides(p["id"]),
-            "needed_approvals": service.needed_approvals(c.firm)}
+            "needed_approvals": service.needed_approvals(c.firm), "read_only": _read_only(c, p)}
+
+
+def _read_only(c, p):
+    try:
+        service.require_writable(c.firm, p["id"])
+        return False
+    except ApiError:
+        return True
 
 
 @router.patch("/projects/{ref}")
@@ -68,6 +76,7 @@ def patch_project(ref: str, body: dict = Body(...), c: Ctx = Depends(auth.need("
     p = _project(c, ref)
     changes = {}
     if "name" in body:
+        service.require_writable(c.firm, p["id"])
         changes["name"] = text(body, "name", "Project name", max_len=120)
     if "archived" in body:
         if not body["archived"] and p["archived_at"]:
@@ -84,6 +93,7 @@ def patch_project(ref: str, body: dict = Body(...), c: Ctx = Depends(auth.need("
 @router.post("/projects/{ref}/issues/{iid}/fix", status_code=201)
 def fix(ref: str, iid: str, c: Ctx = Depends(auth.need("member"))):
     p = _project(c, ref)
+    service.require_writable(c.firm, p["id"])
     cid = service.fix_issue(c, p["id"], iid)
     return {"changeset": cid}
 
@@ -204,6 +214,7 @@ def chat_guard(c):
 @router.post("/projects/{ref}/chat")
 def post_chat(ref: str, body: dict = Body(...), c: Ctx = Depends(auth.need("member"))):
     p = _project(c, ref)
+    service.require_writable(c.firm, p["id"])
     message = text(body, "message", "Message", max_len=4000)
     chat_guard(c)
     auth.rate_limit(f"chat:{c.uid}", 20, 60)

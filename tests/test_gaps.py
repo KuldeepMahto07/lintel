@@ -213,6 +213,144 @@ def test_required_sso_blocks_member_passwords_but_not_owner(app, sample, invite,
     assert User(app).c.post("/api/auth/login", json={"email": "boss@studio.test", "password": PASSWORD}).status_code == 200
 
 
+# ---- Free plan: read-only extra projects, custom rules off ---------------------
+
+def test_free_plan_extra_projects_are_read_only_until_one_is_archived(make_owner):
+    from backend import db
+    owner = make_owner()
+    h = plugin_token(owner)
+    from conftest import SAMPLE
+    owner.c.post("/api/plugin/snapshot", json=dict(SAMPLE, host="test"), headers=h)
+    second = owner.post("/api/projects", json={"name": "Second"}).json()["project"]
+    db.run("update firms set trial_ends_at=? where id=?", (time.time() - 10, owner.fid))
+    P = f"/api/projects/{SAMPLE['project']}"
+    assert owner.get(P).json()["read_only"] is False
+    assert owner.get(f"/api/projects/{second['id']}").json()["read_only"] is True
+    r = owner.patch(f"/api/projects/{second['id']}", json={"name": "Renamed"})
+    assert r.status_code == 402 and r.json()["error"]["limit"] == "projects_readonly"
+    r = owner.c.post("/api/plugin/snapshot", json={"project": second["id"], "name": "x", "host": "test", "elements": []}, headers=h)
+    assert r.status_code == 402  # a plugin can't sync into a read-only project either
+    assert owner.patch(P, json={"archived": True}).status_code == 200  # archiving frees the place
+    assert owner.get(f"/api/projects/{second['id']}").json()["read_only"] is False
+
+
+def test_custom_rules_and_overrides_pause_on_free_and_return_on_upgrade(sample, monkeypatch):
+    owner, _ = sample
+    from backend import db
+    P = "/api/projects/sample-clinic"
+    owner.post("/api/rules", json={"name": "Wide doors", "kind": "min", "applies_to": "door", "prop": "clear_width_mm", "value": 3000})
+    assert any(i["rule_name"] == "Wide doors" for i in owner.get(P).json()["issues"])
+    db.run("update firms set trial_ends_at=? where id=?", (time.time() - 10, owner.fid))
+    assert not any(i["rule_name"] == "Wide doors" for i in owner.get(P).json()["issues"])
+    _staff(owner, monkeypatch, {"plan": "pro"})
+    assert any(i["rule_name"] == "Wide doors" for i in owner.get(P).json()["issues"])
+
+
+# ---- moving walls ---------------------------------------------------------------
+
+def _sample_project(owner):
+    return owner.post("/api/projects/sample").json()["project"]["id"]
+
+
+def test_room_area_issue_gets_a_wall_move_that_resizes_the_room(make_owner):
+    owner = make_owner()
+    pid = _sample_project(owner)
+    P = f"/api/projects/{pid}"
+    exam = next(i for i in owner.get(P).json()["issues"] if i["element"] == "R-exam1" and i["rule"] == "firm-exam-room")
+    assert exam["fixable"]
+    cid = owner.post(f"{P}/issues/{exam['id']}/fix").json()["changeset"]
+    cs = owner.get(f"/api/changesets/{cid}").json()
+    op = cs["ops"][0]
+    assert (op["element"], op["prop"], op["from"], op["to"]) == ("W-09", "offset_mm", 0, -270)
+    assert "moves 270 mm north" in cs["reason"] and "10.2 → 11.01" in cs["reason"] and "Resolves" in cs["reason"]
+    assert op["rooms"] == ["R-exam1"]
+    assert owner.post(f"/api/changesets/{cid}/approve").json()["status"] == "applied"  # the sample host applies it
+    d = owner.get(P).json()
+    room = next(e for e in d["elements"] if e["id"] == "R-exam1")
+    assert room["props"]["area_m2"] == 11.01 and [2000, 4670] in room["geom"]["outline"]
+    assert not any(i["element"] == "R-exam1" and i["rule"] == "firm-exam-room" for i in d["issues"])
+    owner.post(f"/api/changesets/{cid}/revert")
+    room = next(e for e in owner.get(P).json()["elements"] if e["id"] == "R-exam1")
+    assert room["props"]["area_m2"] == 10.2  # the revert moves the wall back by the same distance
+
+
+def test_a_wall_move_reports_the_rooms_it_shrinks(make_owner):
+    owner = make_owner()
+    pid = _sample_project(owner)
+    from backend import service, store
+    c = type("C", (), {"fid": owner.fid, "uid": owner.me["user"]["id"], "audit": lambda *a, **k: None})()
+    cid = service.propose(c, pid, "Widen Exam 1 east", "Site example", [{"element": "W-08", "prop": "offset_mm", "to": -270}], "manual")
+    reason = store.changeset(owner.fid, cid)["reason"]
+    assert "moves 270 mm east" in reason and "Exam 2: 12 → 10.92" in reason and "New issue: Exam 2" in reason
+
+
+def test_wall_moves_are_validated(make_owner):
+    owner = make_owner()
+    pid = _sample_project(owner)
+    from backend import service
+    c = type("C", (), {"fid": owner.fid, "uid": owner.me["user"]["id"], "audit": lambda *a, **k: None})()
+    for bad in (0, 9000, "far"):
+        try:
+            service.propose(c, pid, "t", "r", [{"element": "W-08", "prop": "offset_mm", "to": bad}], "manual")
+            raise AssertionError(bad)
+        except service.ChangeError:
+            pass
+
+
+def test_fixture_host_moves_walls():
+    from backend import geometry
+    from conftest import SAMPLE
+    moved = geometry.move_wall(SAMPLE["elements"], "W-08", -270)
+    rooms = {e["id"]: e["props"]["area_m2"] for e in moved if e["type"] == "room"}
+    assert rooms["R-exam1"] == 11.12 and rooms["R-exam2"] == 10.92 and rooms["R-corr"] == 70.0
+    wall = next(e for e in moved if e["id"] == "W-08")
+    assert wall["geom"]["start"] == [5270, 1000]
+
+
+# ---- occupant loads and exit capacity ------------------------------------------
+
+def test_rooms_carry_occupant_load_from_the_firms_factors(make_owner):
+    owner = make_owner()
+    pid = _sample_project(owner)
+    els = {e["id"]: e["props"] for e in owner.get(f"/api/projects/{pid}").json()["elements"] if e["type"] == "room"}
+    assert els["R-lobby"]["occupant_load"] == 52 and "1004.5" in els["R-lobby"]["load_ref"]  # 72 m² / 1.4
+    assert els["R-exam1"]["occupant_load"] == 2 and els["R-corr"]["occupant_load"] == 0
+    assert els["R-office"]["occupant_load"] == 3  # falls back to the business factor
+
+
+def test_exit_capacity_flags_narrow_exits_and_widens_the_narrowest(make_owner):
+    owner = make_owner()
+    pid = _sample_project(owner)
+    P = f"/api/projects/{pid}"
+    r = owner.post("/api/rules", json={"id": "load-lobby", "name": "Lobby, standing", "kind": "load", "applies_to": "room",
+                                       "where": "use=lobby", "value": 0.2, "unit": "m²/person", "ref": "test"})
+    assert r.status_code == 200, r.text
+    cap = next(i for i in owner.get(P).json()["issues"] if i["rule"] == "exit-capacity")
+    assert cap["occupants"] > 360 and cap["required"] > cap["actual"] and cap["fixable"]
+    cid = owner.post(f"{P}/issues/{cap['id']}/fix").json()["changeset"]
+    op = owner.get(f"/api/changesets/{cid}").json()["ops"][0]
+    assert op["prop"] == "clear_width_mm" and op["to"] > op["from"]
+
+
+def test_load_and_capacity_rules_are_validated(sample):
+    owner, _ = sample
+    bad = owner.post("/api/rules", json={"name": "x", "kind": "load", "applies_to": "door", "value": 1})
+    assert bad.status_code == 422 and "rooms" in bad.json()["error"]["fields"]["applies_to"]
+    ok = owner.post("/api/rules", json={"name": "Clinic", "kind": "load", "applies_to": "room", "where": "use=clinic", "value": 9.3})
+    assert ok.status_code == 200
+
+
+def test_new_starter_rules_reach_existing_firms_but_deleted_ones_stay_gone(make_owner):
+    from backend import db, service
+    owner = make_owner()
+    db.run("delete from rules where firm_id=? and id='exit-capacity'", (owner.fid,))  # a firm from before the rule existed
+    service._topped_up.discard(owner.fid)
+    assert "exit-capacity" in {r["id"] for r in owner.get("/api/rules").json()}  # opening Rules adds it
+    assert owner.delete("/api/rules/load-exam").status_code == 200
+    service._topped_up.discard(owner.fid)  # as after a restart
+    assert "load-exam" not in {r["id"] for r in owner.get("/api/rules").json()}  # a deleted starter rule stays deleted
+
+
 # ---- host helpers ------------------------------------------------------------
 
 def test_common_helpers():

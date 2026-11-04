@@ -155,11 +155,11 @@ def test_sample_project_applies_on_approval(make_owner):
     assert statuses == {cid: "reverted", rv: "applied"}
 
 
-def test_demo_mode_applies_every_project(sample, monkeypatch):
+def test_plugin_projects_wait_for_the_plugin_even_in_demo_mode(sample, monkeypatch):
     owner, _ = sample
-    monkeypatch.setenv("LINTEL_DEMO", "1")
+    monkeypatch.setenv("LINTEL_DEMO", "1")  # the old hosted-demo switch must not mark real projects applied
     cid = owner.post(f"{P}/issues/door-clear-width:D-03/fix").json()["changeset"]
-    assert owner.post(f"/api/changesets/{cid}/approve").json()["status"] == "applied"
+    assert owner.post(f"/api/changesets/{cid}/approve").json()["status"] == "approved"
 
 
 # ---- agent loop with a scripted stand-in for the Claude client ----------------------------------
