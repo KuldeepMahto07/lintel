@@ -55,6 +55,25 @@ def test_unpaid_topup_adds_nothing_and_free_cannot_buy(sample, monkeypatch):
     assert r.status_code == 402 and r.json()["error"]["limit"] == "topup"
 
 
+# ---- founding pilot price ---------------------------------------------------
+
+def test_pilot_price_is_only_for_accepted_firms_and_keeps_three_seats(sample, monkeypatch):
+    owner, _ = sample
+    r = owner.post("/api/billing/checkout", json={"plan": "pilot"})
+    assert r.status_code == 403  # not on the pilot
+    assert _staff(owner, monkeypatch, {"pilot": True}).json()["pilot"] is True
+    assert owner.refresh().json()["firm"]["pilot"] is True
+    assert owner.post("/api/billing/checkout", json={"plan": "pilot"}).json()["error"]["code"] == "billing_unavailable"
+    meta = {"firm_id": owner.fid, "plan": "pro", "pilot": "1"}
+    _webhook(owner, monkeypatch, {"id": "evt_p1", "type": "checkout.session.completed",
+                                  "data": {"object": {"customer": "cus_p", "metadata": meta}}})
+    f = owner.refresh().json()["firm"]
+    assert (f["plan"], f["seats"], f["trial_days_left"]) == ("pro", 3, None)
+    _webhook(owner, monkeypatch, {"id": "evt_p2", "type": "customer.subscription.updated",
+                                  "data": {"object": {"metadata": meta, "items": {"data": [{"quantity": 1}]}}}})
+    assert owner.refresh().json()["firm"]["seats"] == 3  # one flat price, still three seats
+
+
 # ---- live sync: issue deltas for hosts --------------------------------------
 
 def test_snapshot_returns_issue_items(sample):

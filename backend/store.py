@@ -78,13 +78,14 @@ def firm(fid):
     if f:
         f["two_approvals"], f["chat_enabled"] = bool(f["two_approvals"]), bool(f["chat_enabled"])
         f["sso"] = _l(f.get("sso"), None)
+        f["pilot"] = bool(f.get("pilot"))
     return f
 
 
 def update_firm(fid, **fields):
     allowed = {k: v for k, v in fields.items()
                if k in ("name", "plan", "seats", "two_approvals", "chat_enabled", "trial_ends_at", "billing_customer_id", "deleted_at",
-                         "chat_cap_override", "region", "sso")}
+                         "chat_cap_override", "region", "sso", "pilot")}
     if "sso" in allowed and allowed["sso"] is not None:
         allowed["sso"] = _j(allowed["sso"])
     if allowed:

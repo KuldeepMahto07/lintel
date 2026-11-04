@@ -104,6 +104,8 @@ def staff_firm(fid: str, request: Request, body: dict = Body(...)):
             changes[k] = v
     if "region" in body:
         changes["region"] = str(body["region"] or "")[:40] or None
+    if "pilot" in body:  # accepted onto the founding pilot: their Billing page offers the pilot price
+        changes["pilot"] = 1 if body["pilot"] else 0
     with store.db.tx():
         store.update_firm(fid, **changes)
         store.audit(fid, None, "staff", "firm.terms_changed", fid, changes, actor_name="Lintel staff")
@@ -253,12 +255,14 @@ def _stripe(path, params):
 def billing(c: Ctx = Depends(auth.current)):
     return {"firm": firm_payload(c.firm), "prices": plans.PRICES, "plans": plans.PLANS,
             "configured": bool(os.environ.get("STRIPE_SECRET_KEY")), "usage": store.usage(c.fid),
-            "chat_cap": store.chat_cap(c.firm), "topup": plans.TOPUP}
+            "chat_cap": store.chat_cap(c.firm), "topup": plans.TOPUP, "pilot": plans.PILOT}
 
 
 @router.post("/billing/checkout")
 def checkout(body: dict = Body(...), c: Ctx = Depends(auth.need("owner"))):
     plan, interval = body.get("plan"), body.get("interval", "month")
+    if plan == "pilot":
+        return _pilot_checkout(c)
     if plan not in ("pro", "firm") or interval not in ("month", "year"):
         raise invalid("Pick Pro or Firm, monthly or yearly.")
     seats = int(body.get("seats") or 1)
@@ -270,6 +274,22 @@ def checkout(body: dict = Body(...), c: Ctx = Depends(auth.need("owner"))):
         "success_url": base + "/app/settings/billing?upgraded=1", "cancel_url": base + "/app/settings/billing",
         "client_reference_id": c.fid, "metadata[firm_id]": c.fid, "metadata[plan]": plan,
         "subscription_data[metadata][firm_id]": c.fid, "subscription_data[metadata][plan]": plan})
+    return {"url": s["url"]}
+
+
+def _pilot_checkout(c):
+    """Founding pilot: Pro for up to 3 seats, one yearly price, locked because the Stripe price never changes."""
+    if not c.firm.get("pilot"):
+        raise forbidden("The pilot price is for firms on the founding pilot. Apply from the pricing page.")
+    if store.seats_in_use(c.fid) > plans.PILOT["seats"]:
+        raise invalid(f"The pilot covers up to {plans.PILOT['seats']} seats. Move extra members to Viewer first.")
+    base = emails.app_url()
+    meta = {"firm_id": c.fid, "plan": plans.PILOT["plan"], "pilot": "1"}
+    s = _stripe("checkout/sessions", {
+        "mode": "subscription", "line_items[0][price]": os.environ.get("STRIPE_PRICE_PILOT_YEAR", ""), "line_items[0][quantity]": 1,
+        "success_url": base + "/app/settings/billing?upgraded=1", "cancel_url": base + "/app/settings/billing",
+        "client_reference_id": c.fid, **{f"metadata[{k}]": v for k, v in meta.items()},
+        **{f"subscription_data[metadata][{k}]": v for k, v in meta.items()}})
     return {"url": s["url"]}
 
 
@@ -328,11 +348,15 @@ async def webhook(request: Request):
                 store.add_topup(fid, n)
                 store.audit(fid, None, meta.get("by") or "system", "billing.topup", fid, {"messages": n}, actor_name="Billing")
         return {"ok": True}
+    pilot = meta.get("pilot") == "1"  # one flat price covers the pilot's seats, so the quantity isn't the seat count
     if ev["type"] == "checkout.session.completed":
         changes = {"plan": meta.get("plan", "pro"), "billing_customer_id": obj.get("customer"), "trial_ends_at": None}
+        if pilot:
+            changes["seats"] = plans.PILOT["seats"]
     elif ev["type"] == "customer.subscription.updated":
         qty = (obj.get("items", {}).get("data") or [{}])[0].get("quantity")
-        changes = {"plan": meta.get("plan", firm["plan"]), **({"seats": int(qty)} if qty else {})}
+        seats = plans.PILOT["seats"] if pilot else (int(qty) if qty else None)
+        changes = {"plan": meta.get("plan", firm["plan"]), **({"seats": seats} if seats else {})}
     elif ev["type"] == "customer.subscription.deleted":
         changes = {"plan": "free"}
     if changes:

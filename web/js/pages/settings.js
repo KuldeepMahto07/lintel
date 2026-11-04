@@ -263,6 +263,14 @@ async function billing(p) {
       } }, "Manage billing →")),
     h("section", null, h("h3", null, "Plans"),
       !d.configured && h("div", { class: "notice", style: { marginBottom: "16px" } }, "Online payments aren't set up on this server yet. Contact us to upgrade."),
+      f.pilot && h("div", { class: "card selected", style: { marginBottom: "16px", maxWidth: "520px" } },
+        h("div", { class: "card-top" }, h("span", { class: "label accent" }, "Founding pilot"), f.plan === "pro" && !f.trial_days_left && h("span", { class: "chip applied" }, "✓ Active")),
+        h("div", { class: "price" }, `$${d.pilot.year}`), h("span", { class: "micro muted" }, `per year · Pro for up to ${d.pilot.seats} seats · price locked for as long as you stay`),
+        h("p", { class: "small", style: { margin: "10px 0" } }, "Thanks for piloting Lintel on a live project. In return we ask for an hour of feedback a month."),
+        owner && !(f.plan === "pro" && !f.trial_days_left) && h("button", { class: "btn primary", onclick: async (e) => {
+          const out = await act(e.currentTarget, () => post("/api/billing/checkout", { plan: "pilot" }));
+          if (out?.url) location.href = out.url;
+        } }, "Start the pilot plan →")),
       h("div", { class: "btn-row", role: "group", "aria-label": "Billing period", style: { marginBottom: "16px" } },
         [["month", "Monthly"], ["year", "Yearly · 2 months free"]].map(([k, label]) => h("button", {
           class: ["btn", "compact", billEvery === k ? "primary" : "ghost"], "aria-pressed": String(billEvery === k),

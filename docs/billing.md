@@ -52,7 +52,8 @@ PLANS = {
 | Setting | Value |
 |---|---|
 | Products | Lintel Pro, Lintel Firm (per-seat, monthly + yearly prices), Chat top-up (one-off) |
-| Env vars | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_PRO_MONTH`, `…_PRO_YEAR`, `…_FIRM_MONTH`, `…_FIRM_YEAR`, `…_TOPUP` |
+| Env vars | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_PRO_MONTH`, `…_PRO_YEAR`, `…_FIRM_MONTH`, `…_FIRM_YEAR`, `…_TOPUP` (one-off $10), `…_PILOT_YEAR` ($390/year flat, quantity 1; never edit it, so pilots keep their price) |
+| Founding pilot | Staff accept a firm with `PATCH /api/staff/firms/<id>` `{"pilot": true}`; its Billing page then offers the pilot price. Pro for up to 3 seats. |
 
 ### Flow
 1. Owner → Settings › Billing → choose plan, seats and interval → `POST /api/billing/checkout` → redirect to Stripe Checkout.

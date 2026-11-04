@@ -15,6 +15,7 @@ PLANS = {
 }
 PRICES = {"pro": {"month": 39, "year": 390}, "firm": {"month": 99, "year": 990, "min_seats": 3}}
 TOPUP = {"messages": 500, "price": 10}  # one-off, this month only
+PILOT = {"plan": "pro", "seats": 3, "year": 390}  # founding firms: fixed yearly price for as long as they stay
 WARN_AT = 0.8  # admins see a notice at 80% of the month's messages
 TRIAL_DAYS = 14
 TRIAL_SEATS = 3

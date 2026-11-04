@@ -25,6 +25,7 @@ def firm_payload(firm):
             "seats": firm["seats"], "two_approvals": firm["two_approvals"], "chat_enabled": firm["chat_enabled"],
             "trial_days_left": plans.trial_days_left(firm), "limits": lim, "seats_used": store.seats_in_use(firm["id"]),
             "seat_cap": plans.seat_cap(firm), "region": firm.get("region") or "", "chat_cap_override": firm.get("chat_cap_override"),
+            "pilot": bool(firm.get("pilot")),
             "sso": sso_summary(firm.get("sso"))}
 
 
