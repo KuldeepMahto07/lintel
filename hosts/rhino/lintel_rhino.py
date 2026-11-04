@@ -3,7 +3,11 @@
 
 Run once to connect the open model to Lintel and open the floating Lintel window; run again to
 disconnect. In Rhino:  _-RunPythonScript "<path>\\hosts\\rhino\\lintel_rhino.py"
-(or alias it: Options > Aliases > Lintel = _-RunPythonScript "<path>").
+The first run adds a `Lintel` command alias and, if the key is free, the Ctrl+Shift+L shortcut,
+so after that the window is one keystroke away.
+
+While connected Lintel watches the model: it re-checks within a couple of seconds of each edit and
+writes new issues to the command line, so problems are found the moment they are drawn.
 
 Model convention (Rhino has no BIM objects, so Lintel reads layers and Attribute User Text):
   Lintel::Rooms   closed planar curves. User text: name, use (corridor, exam, bedroom, office...),
@@ -184,6 +188,8 @@ class Session:
         doc = _doc()
         self.client = lintel_client.Client(project_id(doc), "rhino8", doc.Name or "Untitled Rhino model")
         self.undo = Undo()
+        self.watch = lintel_client.Watcher(self.client, snapshot, get, set_, begin=self.undo.begin,
+                                           commit=self.undo.commit, rollback=self.undo.rollback)
         self.last = 0.0
         self.form = None
 
@@ -191,13 +197,24 @@ class Session:
         if time.time() - self.last < POLL_SECONDS:
             return
         self.last = time.time()
+        first = self.watch.known is None
         try:
-            for cid, ok, err in lintel_client.sync_once(self.client, snapshot, get, set_, begin=self.undo.begin,
-                                                        commit=self.undo.commit, rollback=self.undo.rollback):
-                Rhino.RhinoApp.WriteLine("Lintel: %s %s %s" % ("applied" if ok else "refused", cid, err or ""))
+            applied, new = self.watch.tick()
         except Exception as ex:  # server down: keep Rhino responsive, retry later
             self.last = time.time() + 10
             Rhino.RhinoApp.WriteLine("Lintel: sync failed (%s); retrying" % ex)
+            return
+        for cid, ok, err in applied:
+            Rhino.RhinoApp.WriteLine("Lintel: %s %s %s" % ("applied" if ok else "refused", cid, err or ""))
+        if first:
+            Rhino.RhinoApp.WriteLine("Lintel: watching. %d open issue%s." % (self.watch.count, "" if self.watch.count == 1 else "s"))
+        for i in new[:5]:
+            Rhino.RhinoApp.WriteLine("Lintel %s %s (%s) %s" % ("!" if i["severity"] == "error" else "?", i["message"],
+                                                             i["element_name"], i["ref"]))
+        if len(new) > 5:
+            Rhino.RhinoApp.WriteLine("Lintel: and %d more. Open the Lintel window (Ctrl+Shift+L)." % (len(new) - 5))
+        if self.form:
+            self.form.Title = "Lintel · %d issue%s" % (self.watch.count, "" if self.watch.count == 1 else "s")
 
     def open_window(self):
         import Eto.Forms as forms
@@ -214,6 +231,21 @@ class Session:
         self.form = form
 
 
+def register_hotkey():
+    """A `Lintel` alias for this script, and Ctrl+Shift+L for it unless that key is already taken."""
+    macro = '_-RunPythonScript "%s"' % os.path.abspath(__file__)
+    aliases = Rhino.ApplicationSettings.CommandAliasList
+    if not aliases.IsAlias("Lintel"):
+        aliases.Add("Lintel", macro)
+    keys = Rhino.ApplicationSettings.ShortcutKeySettings
+    for name in ("CtrlShiftL", "ShiftCtrlL"):  # the enum name differs between Rhino builds
+        key = getattr(Rhino.ApplicationSettings.ShortcutKey, name, None)
+        if key is not None:
+            if not keys.GetMacro(key):
+                keys.SetMacro(key, "Lintel")
+            return
+
+
 def main():
     state = sc.sticky.get(STICKY)
     if state:
@@ -224,7 +256,7 @@ def main():
         Rhino.RhinoApp.WriteLine("Lintel disconnected.")
         return
     session = Session()
-    session.client.push_snapshot(snapshot())
+    register_hotkey()
     Rhino.RhinoApp.Idle += session.on_idle
     sc.sticky[STICKY] = session
     session.open_window()

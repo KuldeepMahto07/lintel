@@ -1,9 +1,12 @@
-"""Sign up, sign in, sessions, password reset, the current user, and invite acceptance."""
+"""Sign up, sign in (password or SSO), sessions, password reset, the current user, and invite acceptance."""
+import secrets
 import time
+import urllib.parse
 
 from fastapi import APIRouter, Body, Depends, Request, Response
+from fastapi.responses import RedirectResponse
 
-from .. import auth, emails, plans, store
+from .. import auth, emails, plans, sso, store
 from ..auth import Ctx
 from ..errors import ApiError, forbidden, invalid, not_found, unauthenticated
 from . import email, text
@@ -21,13 +24,21 @@ def firm_payload(firm):
     return {"id": firm["id"], "name": firm["name"], "plan": plans.effective(firm), "plan_raw": firm["plan"],
             "seats": firm["seats"], "two_approvals": firm["two_approvals"], "chat_enabled": firm["chat_enabled"],
             "trial_days_left": plans.trial_days_left(firm), "limits": lim, "seats_used": store.seats_in_use(firm["id"]),
-            "seat_cap": plans.seat_cap(firm)}
+            "seat_cap": plans.seat_cap(firm), "region": firm.get("region") or "", "chat_cap_override": firm.get("chat_cap_override"),
+            "sso": sso_summary(firm.get("sso"))}
+
+
+def sso_summary(cfg):
+    """What the browser may see of the SSO settings: never the client secret."""
+    if not cfg:
+        return None
+    return {"issuer": cfg.get("issuer", ""), "client_id": cfg.get("client_id", ""), "domains": cfg.get("domains", []),
+            "required": bool(cfg.get("required")), "default_role": cfg.get("default_role", "member")}
 
 
 def me_payload(c: Ctx):
-    seats = store.seats_in_use(c.fid)
     return {"user": c.user, "firm": firm_payload(c.firm), "role": c.role, "firms": store.firms_for_user(c.uid),
-            "csrf": c.csrf, "usage": dict(store.usage(c.fid), chat_cap=plans.chat_cap(c.firm, seats))}
+            "csrf": c.csrf, "usage": dict(store.usage(c.fid), chat_cap=store.chat_cap(c.firm), warn_at=plans.WARN_AT)}
 
 
 def _start_session(request, response, uid, fid):
@@ -66,12 +77,59 @@ def login(request: Request, response: Response, body: dict = Body(...)):
     firms = store.firms_for_user(u["id"])
     if not firms:
         raise forbidden("This account isn't a member of any firm.")
+    pinned = sso.firm_for_email(mail)
+    if pinned and pinned["sso"].get("required") and store.role(pinned["id"], u["id"]) not in (None, "owner"):
+        # Owners keep their password so a broken identity provider can't lock the firm out.
+        raise ApiError(403, "sso_required", f"{pinned['name']} signs in with single sign-on. Use \"Sign in with SSO\".")
     old = request.cookies.get(auth.COOKIE)
     if old:
         store.delete_session(old)  # rotate on login
     _start_session(request, response, u["id"], firms[0]["id"])
     store.audit(firms[0]["id"], None, u["id"], "auth.login", u["id"], {}, actor_name=u["name"])
     return {"user": store.user(u["id"]), "firms": firms}
+
+
+def _sso_redirect_uri():
+    return emails.app_url() + "/api/auth/sso/callback"
+
+
+@router.post("/auth/sso/start")
+def sso_start(request: Request, body: dict = Body(...)):
+    mail = str(body.get("email", "")).strip().lower()
+    auth.rate_limit(f"sso:{_ip(request)}", 20, 900)
+    firm = sso.firm_for_email(mail)
+    if not firm or not plans.limits(firm)["sso"]:
+        raise not_found("Single sign-on isn't set up for that email domain. Sign in with your password.")
+    return {"url": sso.start(firm, _sso_redirect_uri(), mail)}
+
+
+@router.get("/auth/sso/callback")
+def sso_callback(request: Request, code: str = "", state: str = "", error: str = ""):
+    try:
+        if error:
+            raise ApiError(400, "sso_error", "The identity provider cancelled the sign-in.")
+        firm, mail, name = sso.finish(code, state, _sso_redirect_uri())
+        u = store.user_by_email(mail)
+        with store.db.tx():
+            if not u:
+                uid = store.create_user(mail, name, auth.hash_password(secrets.token_urlsafe(32)))
+            else:
+                uid = u["id"]
+            if store.role(firm["id"], uid) is None:
+                role = firm["sso"].get("default_role", "member")
+                if role != "viewer" and store.seats_in_use(firm["id"]) >= plans.seat_cap(firm):
+                    role = "viewer"  # no free seat: they can read until an admin gives them one
+                store.add_member(firm["id"], uid, role)
+                store.audit(firm["id"], None, uid, "member.joined", uid, {"role": role, "via": "sso"}, actor_name=name)
+        response = RedirectResponse("/app", status_code=303)
+        old = request.cookies.get(auth.COOKIE)
+        if old:
+            store.delete_session(old)
+        _start_session(request, response, uid, firm["id"])
+        store.audit(firm["id"], None, uid, "auth.login", uid, {"via": "sso"}, actor_name=name)
+        return response
+    except ApiError as e:
+        return RedirectResponse("/login?" + urllib.parse.urlencode({"sso_error": e.message}), status_code=303)
 
 
 @router.post("/auth/logout", status_code=204)

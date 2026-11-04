@@ -1,5 +1,5 @@
 // Settings: Profile, Firm, Members, Plugins (personal tokens), Billing.
-import { act, ago, app, clear, confirm, copy, del, empty, field, formData, get, h, loadError, patch, post, showErrors, skeleton, toast, upgradePrompt } from "../lib.js";
+import { act, ago, app, clear, confirm, copy, del, empty, field, formData, get, h, loadError, patch, post, put, showErrors, skeleton, toast, upgradePrompt } from "../lib.js";
 import { navigate, refreshMe, renderBanners } from "../main.js";
 
 const SECTIONS = [["profile", "Profile"], ["firm", "Firm"], ["members", "Members"], ["plugins", "Plugins"], ["billing", "Billing"]];
@@ -74,6 +74,11 @@ async function firm(p) {
     h("section", null, h("h3", null, "Approvals and assistant"),
       toggle("Two approvals", "A change set needs two different approvers before it reaches the model. Firm plan.", "two_approvals", f.two_approvals),
       toggle("Assistant chat", "Chat sends your message plus the relevant model data and rules to Anthropic's API. API data isn't used for training.", "chat_enabled", f.chat_enabled)),
+    h("section", null, h("h3", null, "Data region"),
+      h("p", { class: "small" }, f.region ? `This firm's projects, rules and history are stored in ${f.region}.`
+        : "This firm is stored in the default region of this Lintel server. Enterprise firms can choose a region or host Lintel themselves."),
+      h("p", { class: "micro muted" }, "Firm ID ", h("code", { style: { textTransform: "none" } }, f.id))),
+    app.can("owner") && ssoSection(f),
     app.can("owner") && h("section", null, h("h3", { class: "accent" }, "Danger zone"),
       h("p", { class: "small" }, "Deleting the firm signs everyone out and removes its projects, rules and history after 30 days."),
       h("button", { class: "btn danger", onclick: async () => {
@@ -85,8 +90,37 @@ async function firm(p) {
       } }, "Delete firm")));
 }
 
+function ssoSection(f) {
+  const head = h("h3", null, "Single sign-on");
+  if (!f.limits.sso) {
+    return h("section", null, head, h("p", { class: "small" }, "Sign in through your identity provider (Okta, Microsoft Entra ID, Google Workspace or any OpenID Connect provider). Part of the Enterprise plan. ",
+      h("a", { href: "/contact.html" }, "Talk to us →")));
+  }
+  const s = f.sso || {};
+  const form = h("form", { novalidate: true },
+    field("Issuer URL", input("issuer", s.issuer, { placeholder: "https://login.example.com" }), "From your identity provider's OpenID Connect app"),
+    field("Client ID", input("client_id", s.client_id)),
+    field("Client secret", input("client_secret", "", { type: "password", autocomplete: "off", placeholder: f.sso ? "Saved. Leave blank to keep it." : "" })),
+    field("Email domains", input("domains", (s.domains || []).join(", "), { placeholder: "studio.com, studio.co.uk" }), "People with these addresses can sign in with SSO"),
+    field("New people join as", h("select", { class: "input", name: "default_role" },
+      [["member", "Member"], ["approver", "Approver"], ["viewer", "Viewer"]].map(([v, l]) => h("option", { value: v, selected: (s.default_role || "member") === v }, l)))),
+    h("label", { class: "check", style: { margin: "8px 0 16px" } }, h("input", { type: "checkbox", name: "required", checked: !!s.required }),
+      " Require SSO. Members can't use a password; owners still can, so a provider outage can't lock you out."),
+    h("p", { class: "small muted" }, "Redirect URL for your provider: ", h("code", null, `${location.origin}/api/auth/sso/callback`)),
+    h("div", { class: "btn-row" }, h("button", { class: "btn primary", type: "submit" }, f.sso ? "Save SSO" : "Turn on SSO"),
+      f.sso && h("button", { class: "btn ghost", type: "button", onclick: async (e) => {
+        if (!await confirm({ title: "Turn off SSO", message: "Members will sign in with their passwords again (or reset them).", confirmLabel: "Turn off", danger: true })) return;
+        await act(e.currentTarget, () => del("/api/firm/sso"), "Single sign-on is off."); await refreshMe(); show("firm");
+      } }, "Turn off")));
+  onSubmit(form, async (d) => {
+    await put("/api/firm/sso", { ...d, required: form.querySelector("[name=required]").checked });
+    await refreshMe(); toast("Single sign-on saved."); show("firm");
+  });
+  return h("section", null, head, form);
+}
+
 // ---- members ---------------------------------------------------------------
-const ROLES = [["owner", "Owner"], ["admin", "Admin"], ["approver", "Approver"], ["member", "Member"], ["viewer", "Viewer"]];
+const ROLES =[["owner", "Owner"], ["admin", "Admin"], ["approver", "Approver"], ["member", "Member"], ["viewer", "Viewer"]];
 const ROLE_HELP = "Viewer: read only · Member: propose, chat, comment · Approver: approve, reject, revert · Admin: members, rules, tokens · Owner: billing, delete firm";
 
 async function members(p) {
@@ -185,9 +219,10 @@ async function plugins(p) {
 async function billing(p) {
   const d = await get("/api/billing");
   const f = d.firm, owner = app.can("owner");
-  const usage = d.usage.chat_messages, cap = app.me.usage.chat_cap;
+  const usage = d.usage.chat_messages, cap = d.chat_cap, extra = d.usage.topup_messages || 0;
   const pct = cap ? Math.min(100, Math.round((usage / cap) * 100)) : 0;
-  const upgraded = new URLSearchParams(location.search).get("upgraded");
+  const qs = new URLSearchParams(location.search);
+  const upgraded = qs.get("upgraded"), toppedUp = qs.get("topup");
   const planCard = (key, name, price, sub, items) => {
     const current = f.plan === key;
     const btn = owner && !current && key !== "free" && h("button", { class: "btn primary", onclick: async (e) => {
@@ -201,12 +236,19 @@ async function billing(p) {
   };
   clear(p,
     upgraded && h("div", { class: "notice", style: { marginBottom: "16px" } }, "Thanks. Your plan updates as soon as the payment provider confirms it."),
+    toppedUp && h("div", { class: "notice", style: { marginBottom: "16px" } }, `Thanks. ${d.topup.messages} messages are added as soon as the payment provider confirms it.`),
     h("section", null, h("h3", null, "Your plan"),
       h("dl", { class: "kv", style: { maxWidth: "520px" } },
         h("dt", null, "Plan"), h("dd", null, f.plan.toUpperCase() + (f.trial_days_left !== null ? ` · trial, ${f.trial_days_left} days left` : "")),
         h("dt", null, "Seats"), h("dd", null, `${f.seats_used} of ${f.seat_cap} used`),
-        h("dt", null, "Assistant this month"), h("dd", null, `${usage} of ${cap}`)),
+        h("dt", null, "Assistant this month"), h("dd", null, `${usage} of ${cap}` + (extra ? ` (includes ${extra} added)` : ""))),
       h("div", { class: ["meter", pct >= 80 && "hot"], style: { maxWidth: "520px", marginTop: "12px" }, role: "meter", "aria-valuenow": String(pct), "aria-valuemin": "0", "aria-valuemax": "100", "aria-label": "Assistant messages used" }, h("span", { style: { width: `${pct}%` } })),
+      app.can("admin") && f.plan !== "free" && h("div", { style: { display: "flex", flexWrap: "wrap", marginTop: "16px", gap: "12px", alignItems: "center" } },
+        h("button", { class: "btn", onclick: async (e) => {
+          const out = await act(e.currentTarget, () => post("/api/billing/topup"));
+          if (out?.url) location.href = out.url;
+        } }, `Add ${d.topup.messages} messages · $${d.topup.price} →`),
+        h("span", { class: "micro muted" }, "For this month only. Checks, fixes and approvals never use messages.")),
       owner && f.plan_raw !== "free" && !f.trial_days_left && h("button", { class: "btn", style: { marginTop: "16px" }, onclick: async (e) => {
         const out = await act(e.currentTarget, () => post("/api/billing/portal"));
         if (out?.url) location.href = out.url;

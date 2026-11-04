@@ -5,15 +5,17 @@ from .errors import ApiError
 
 PLANS = {
     "free": {"projects": 1, "apply": False, "custom_rules": False, "chat_per_seat": 20, "two_approvals": False,
-             "audit_csv": False, "overrides": False, "members": 1},
+             "audit_csv": False, "overrides": False, "members": 1, "sso": False},
     "pro": {"projects": None, "apply": True, "custom_rules": True, "chat_per_seat": 300, "two_approvals": False,
-            "audit_csv": False, "overrides": True, "members": None},
+            "audit_csv": False, "overrides": True, "members": None, "sso": False},
     "firm": {"projects": None, "apply": True, "custom_rules": True, "chat_per_seat": 1000, "two_approvals": True,
-             "audit_csv": True, "overrides": True, "members": None},
+             "audit_csv": True, "overrides": True, "members": None, "sso": False},
     "enterprise": {"projects": None, "apply": True, "custom_rules": True, "chat_per_seat": 5000, "two_approvals": True,
-                   "audit_csv": True, "overrides": True, "members": None},
+                   "audit_csv": True, "overrides": True, "members": None, "sso": True},
 }
 PRICES = {"pro": {"month": 39, "year": 390}, "firm": {"month": 99, "year": 990, "min_seats": 3}}
+TOPUP = {"messages": 500, "price": 10}  # one-off, this month only
+WARN_AT = 0.8  # admins see a notice at 80% of the month's messages
 TRIAL_DAYS = 14
 TRIAL_SEATS = 3
 
@@ -54,8 +56,12 @@ def seat_cap(firm):
     return cap if cap is not None else max(1, int(firm.get("seats") or 1))
 
 
-def chat_cap(firm, seats_used):
-    return limits(firm)["chat_per_seat"] * max(1, seats_used)
+def chat_cap(firm, seats_used, topup=0):
+    """The month's assistant messages: per seat from the plan (or the Enterprise custom limit), plus top-ups."""
+    base = firm.get("chat_cap_override") if effective(firm) == "enterprise" else None
+    if base is None:
+        base = limits(firm)["chat_per_seat"] * max(1, seats_used)
+    return int(base) + int(topup or 0)
 
 
 _MESSAGES = {
@@ -65,6 +71,7 @@ _MESSAGES = {
     "two_approvals": "Two-approval mode is part of the Firm plan.",
     "audit_csv": "Audit CSV export is part of the Firm plan.",
     "overrides": "Per-project rule overrides need the Pro plan.",
+    "sso": "Single sign-on is part of the Enterprise plan. Talk to us to set it up.",
     "members": "Your plan has no free seats. Add seats in Billing or invite this person as a Viewer.",
-    "chat": "Your firm has used this month's assistant messages. Chat resumes next month, or add a top-up in Billing.",
+    "chat": "Your firm has used this month's assistant messages. Chat resumes next month, or add 500 messages in Billing.",
 }

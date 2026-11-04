@@ -2,11 +2,12 @@
 clause (directly, or through projects.firm_id), so one firm can never read another firm's rows."""
 import hashlib
 import json
+import os
 import secrets
 import time
 import uuid
 
-from . import db
+from . import db, plans
 
 DAY = 86400
 
@@ -61,22 +62,31 @@ def update_user(uid, **fields):
 # ---- firms and memberships -------------------------------------------------
 
 def create_firm(name, plan="free", seats=1, trial_ends_at=None):
+    """The firm's data region is the region of the deployment that created it (LINTEL_REGION)."""
     fid = new_id("frm")
-    db.run("insert into firms (id, name, plan, seats, trial_ends_at, created_at) values (?,?,?,?,?,?)",
-           (fid, name.strip(), plan, seats, trial_ends_at, now()))
+    db.run("insert into firms (id, name, plan, seats, trial_ends_at, created_at, region) values (?,?,?,?,?,?,?)",
+           (fid, name.strip(), plan, seats, trial_ends_at, now(), os.environ.get("LINTEL_REGION") or None))
     return fid
+
+
+def sso_firms():
+    return [firm(r["id"]) for r in db.all("select id from firms where sso is not null and deleted_at is null")]
 
 
 def firm(fid):
     f = db.one("select * from firms where id=? and deleted_at is null", (fid,))
     if f:
         f["two_approvals"], f["chat_enabled"] = bool(f["two_approvals"]), bool(f["chat_enabled"])
+        f["sso"] = _l(f.get("sso"), None)
     return f
 
 
 def update_firm(fid, **fields):
     allowed = {k: v for k, v in fields.items()
-               if k in ("name", "plan", "seats", "two_approvals", "chat_enabled", "trial_ends_at", "billing_customer_id", "deleted_at")}
+               if k in ("name", "plan", "seats", "two_approvals", "chat_enabled", "trial_ends_at", "billing_customer_id", "deleted_at",
+                         "chat_cap_override", "region", "sso")}
+    if "sso" in allowed and allowed["sso"] is not None:
+        allowed["sso"] = _j(allowed["sso"])
     if allowed:
         db.run(f"update firms set {', '.join(k + '=?' for k in allowed)} where id=?", (*allowed.values(), fid))
 
@@ -396,8 +406,28 @@ def add_usage(fid, messages=0, input_tokens=0, output_tokens=0):
 
 
 def usage(fid):
-    return db.one("select chat_messages, input_tokens, output_tokens from usage where firm_id=? and month=?", (fid, month())) \
-        or {"chat_messages": 0, "input_tokens": 0, "output_tokens": 0}
+    return db.one("select chat_messages, input_tokens, output_tokens, topup_messages from usage where firm_id=? and month=?",
+                  (fid, month())) or {"chat_messages": 0, "input_tokens": 0, "output_tokens": 0, "topup_messages": 0}
+
+
+def add_topup(fid, messages):
+    """Extra assistant messages for the current month only (a top-up doesn't roll over)."""
+    db.run("insert into usage (firm_id, month, topup_messages) values (?,?,?) "
+           "on conflict(firm_id, month) do update set topup_messages=usage.topup_messages+excluded.topup_messages",
+           (fid, month(), messages))
+
+
+def dismissed_suggestions(fid):
+    return {r["key"] for r in db.all("select key from rule_suggestions_dismissed where firm_id=?", (fid,))}
+
+
+def dismiss_suggestion(fid, key):
+    db.run("insert into rule_suggestions_dismissed (firm_id, key, at) values (?,?,?) on conflict(firm_id, key) do nothing",
+           (fid, key, now()))
+
+
+def chat_cap(firm):
+    return plans.chat_cap(firm, seats_in_use(firm["id"]), usage(firm["id"])["topup_messages"])
 
 
 # ---- audit -----------------------------------------------------------------

@@ -9,7 +9,7 @@ import time
 from fastapi import APIRouter, Body, Depends, Request
 from fastapi.responses import Response
 
-from .. import auth, db, plans, service, store
+from .. import auth, db, learn, plans, service, store
 from ..auth import Ctx
 from ..errors import forbidden, invalid, not_found
 from . import text
@@ -53,7 +53,12 @@ def plugin_snapshot(body: dict = Body(...), c: Ctx = Depends(auth.plugin)):
             store.update_project(c.fid, p["id"], host=host)
         store.save_snapshot(p["id"], host, elements)
         c.audit(p["id"], "model.snapshot", "", {"elements": len(elements)})
-    return {"project": p["id"], "issues": len(service.issues(c.fid, p["id"]))}
+    found = service.issues(c.fid, p["id"])
+    learn.after_sync(c.fid)
+    # Hosts compare these ids between syncs to speak up only about issues that are new.
+    return {"project": p["id"], "issues": len(found),
+            "items": [{"id": i["id"], "message": i["message"], "element_name": i["element_name"], "severity": i["severity"],
+                       "ref": i["ref"]} for i in found[:50]]}
 
 
 @router.get("/plugin/pending")

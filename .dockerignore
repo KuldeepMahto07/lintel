@@ -1,0 +1,12 @@
+.venv
+.git
+.vercel
+.env
+data
+study
+vendor
+tests
+saas
+docs
+__pycache__
+*.pyc

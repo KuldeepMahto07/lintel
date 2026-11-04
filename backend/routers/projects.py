@@ -197,7 +197,7 @@ def chat_guard(c):
     if not os.environ.get("ANTHROPIC_API_KEY"):
         raise ApiError(503, "chat_unavailable", "Chat isn't set up: add ANTHROPIC_API_KEY to the server and restart.")
     used = store.usage(c.fid)["chat_messages"]
-    if used >= plans.chat_cap(c.firm, store.seats_in_use(c.fid)):
+    if used >= store.chat_cap(c.firm):
         raise ApiError(402, "plan_limit", plans._MESSAGES["chat"], limit="chat", plan=plans.effective(c.firm))
 
 

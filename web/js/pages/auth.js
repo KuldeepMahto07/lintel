@@ -54,6 +54,17 @@ export const login = {
       await post("/api/auth/login", { email: d.email, password: d.password }, { allow401: true });
       await enter(nextParam());
     });
+    const ssoError = new URLSearchParams(location.search).get("sso_error");
+    const ssoBtn = h("button", { class: "btn", type: "button", style: { width: "100%", marginTop: "12px" } }, "Sign in with SSO");
+    ssoBtn.onclick = async () => {
+      const mail = form.querySelector("[name=email]").value.trim();
+      if (!mail) { showErrors(form, { message: "Enter your work email first.", fields: { email: "Enter your work email." } }); return; }
+      ssoBtn.classList.add("loading"); ssoBtn.disabled = true;
+      try { const out = await post("/api/auth/sso/start", { email: mail }); location.href = out.url; }
+      catch (err) { showErrors(form, err); ssoBtn.classList.remove("loading"); ssoBtn.disabled = false; }
+    };
+    form.append(ssoBtn);
+    if (ssoError) form.prepend(h("div", { class: "notice", role: "alert", style: { marginBottom: "12px" } }, ssoError));
     root.append(sheet("Sign in", "Welcome back", form,
       h("p", { class: "alt" }, "New to Lintel? ", h("a", { href: "/signup", "data-link": "" }, "Create your firm"))));
   },

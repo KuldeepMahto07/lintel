@@ -7,7 +7,7 @@ from pathlib import Path
 from fastapi import APIRouter, Body, Depends, Request
 from fastapi.responses import JSONResponse
 
-from .. import auth, plans, store
+from .. import auth, learn, plans, store
 from ..auth import Ctx
 from ..errors import ApiError, invalid, not_found
 
@@ -106,6 +106,7 @@ def remove_rule(rid: str, c: Ctx = Depends(auth.need("admin"))):
     if not rule:
         raise not_found("No such rule.")
     with store.db.tx():
+        learn.dismiss(c.fid, rule)
         store.delete_rule(c.fid, rid)
         c.audit(None, "rule.deleted", rid, {"name": rule["name"]})
     return {"ok": True}

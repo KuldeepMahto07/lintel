@@ -10,7 +10,7 @@ import urllib.request
 
 from fastapi import APIRouter, Body, Depends, Request, Response
 
-from .. import auth, emails, plans, store
+from .. import auth, emails, plans, sso, store
 from ..auth import RANK, Ctx
 from ..errors import ApiError, conflict, forbidden, invalid, not_found
 from . import email, text
@@ -54,6 +54,60 @@ def delete_firm(body: dict = Body(...), c: Ctx = Depends(auth.need("owner"))):
     r = Response(status_code=204)
     auth.clear_session_cookie(r)
     return r
+
+
+# ---- Enterprise: single sign-on and staff-set terms --------------------------
+
+@router.put("/firm/sso")
+def put_sso(body: dict = Body(...), c: Ctx = Depends(auth.need("owner"))):
+    plans.require(c.firm, "sso")
+    cfg = sso.clean_config(body, c.firm.get("sso"))
+    for f in store.sso_firms():
+        if f["id"] != c.fid and set(f["sso"].get("domains", [])) & set(cfg["domains"]):
+            raise conflict("Another firm already uses one of these email domains for single sign-on.")
+    with store.db.tx():
+        store.update_firm(c.fid, sso=cfg)
+        c.audit(None, "firm.sso_saved", c.fid, {k: v for k, v in cfg.items() if k != "client_secret"})
+    return firm_payload(store.firm(c.fid))
+
+
+@router.delete("/firm/sso")
+def delete_sso(c: Ctx = Depends(auth.need("owner"))):
+    with store.db.tx():
+        store.db.run("update firms set sso=null where id=?", (c.fid,))
+        c.audit(None, "firm.sso_removed", c.fid)
+    return firm_payload(store.firm(c.fid))
+
+
+def _staff(request):
+    staff = os.environ.get("LINTEL_STAFF_TOKEN", "")
+    if not staff or not hmac.compare_digest(request.headers.get("x-staff-token", ""), staff):
+        raise forbidden()
+
+
+@router.patch("/staff/firms/{fid}")
+def staff_firm(fid: str, request: Request, body: dict = Body(...)):
+    """Lintel staff only (LINTEL_STAFF_TOKEN): put a firm on Enterprise terms after a contract is signed."""
+    _staff(request)
+    if not store.firm(fid):
+        raise not_found("No such firm.")
+    changes = {}
+    if "plan" in body:
+        if body["plan"] not in plans.PLANS:
+            raise invalid("Unknown plan.", plan="Use free, pro, firm or enterprise.")
+        changes.update(plan=body["plan"], trial_ends_at=None)
+    for k in ("seats", "chat_cap_override"):
+        if k in body:
+            v = body[k]
+            if v is not None and (not isinstance(v, int) or isinstance(v, bool) or v < 1):
+                raise invalid(f"{k} must be a positive whole number.", **{k: "Use a positive whole number."})
+            changes[k] = v
+    if "region" in body:
+        changes["region"] = str(body["region"] or "")[:40] or None
+    with store.db.tx():
+        store.update_firm(fid, **changes)
+        store.audit(fid, None, "staff", "firm.terms_changed", fid, changes, actor_name="Lintel staff")
+    return firm_payload(store.firm(fid))
 
 
 # ---- members ---------------------------------------------------------------
@@ -198,7 +252,8 @@ def _stripe(path, params):
 @router.get("/billing")
 def billing(c: Ctx = Depends(auth.current)):
     return {"firm": firm_payload(c.firm), "prices": plans.PRICES, "plans": plans.PLANS,
-            "configured": bool(os.environ.get("STRIPE_SECRET_KEY")), "usage": store.usage(c.fid)}
+            "configured": bool(os.environ.get("STRIPE_SECRET_KEY")), "usage": store.usage(c.fid),
+            "chat_cap": store.chat_cap(c.firm), "topup": plans.TOPUP}
 
 
 @router.post("/billing/checkout")
@@ -215,6 +270,21 @@ def checkout(body: dict = Body(...), c: Ctx = Depends(auth.need("owner"))):
         "success_url": base + "/app/settings/billing?upgraded=1", "cancel_url": base + "/app/settings/billing",
         "client_reference_id": c.fid, "metadata[firm_id]": c.fid, "metadata[plan]": plan,
         "subscription_data[metadata][firm_id]": c.fid, "subscription_data[metadata][plan]": plan})
+    return {"url": s["url"]}
+
+
+@router.post("/billing/topup")
+def topup(c: Ctx = Depends(auth.need("admin"))):
+    """500 more assistant messages for this month, as a one-off payment."""
+    if plans.effective(c.firm) == "free":
+        raise ApiError(402, "plan_limit", "Message top-ups are for paid plans. Upgrade to Pro for 300 messages per seat.",
+                       limit="topup", plan="free")
+    base = emails.app_url()
+    s = _stripe("checkout/sessions", {
+        "mode": "payment", "line_items[0][price]": os.environ.get("STRIPE_PRICE_TOPUP", ""), "line_items[0][quantity]": 1,
+        "success_url": base + "/app/settings/billing?topup=1", "cancel_url": base + "/app/settings/billing",
+        "client_reference_id": c.fid, "metadata[firm_id]": c.fid, "metadata[kind]": "topup",
+        "metadata[messages]": plans.TOPUP["messages"], "metadata[by]": c.uid})
     return {"url": s["url"]}
 
 
@@ -251,6 +321,13 @@ async def webhook(request: Request):
     if not firm:
         return {"ok": True, "ignored": True}
     changes = {}
+    if ev["type"] == "checkout.session.completed" and meta.get("kind") == "topup":
+        if obj.get("payment_status") == "paid":
+            n = int(meta.get("messages") or plans.TOPUP["messages"])
+            with store.db.tx():
+                store.add_topup(fid, n)
+                store.audit(fid, None, meta.get("by") or "system", "billing.topup", fid, {"messages": n}, actor_name="Billing")
+        return {"ok": True}
     if ev["type"] == "checkout.session.completed":
         changes = {"plan": meta.get("plan", "pro"), "billing_customer_id": obj.get("customer"), "trial_ends_at": None}
     elif ev["type"] == "customer.subscription.updated":

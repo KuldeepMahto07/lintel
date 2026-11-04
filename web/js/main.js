@@ -195,10 +195,11 @@ export function renderBanners() {
       app.can("owner") && h("a", { class: "btn ghost compact", href: "/app/settings/billing", "data-link": "" }, "See plans →")));
   }
   const used = me.usage?.chat_messages || 0, cap = me.usage?.chat_cap || 0;
-  if (app.can("admin") && cap && used >= cap * 0.8) {
+  if (app.can("admin") && cap && used >= cap * (me.usage?.warn_at || 0.8)) {
     out.push(h("div", { class: "banner accent" }, h("span", { class: "grow" },
-      used >= cap ? `Assistant messages used up for this month (${used} of ${cap}). Chat resumes next month.`
-        : `Assistant messages: ${used} of ${cap} used this month.`)));
+      used >= cap ? `Assistant messages used up for this month (${used} of ${cap}). Chat resumes next month, or add more.`
+        : `Assistant messages: ${used} of ${cap} used this month.`),
+      f.plan !== "free" && h("a", { class: "btn ghost compact", href: "/app/settings/billing", "data-link": "" }, "Add 500 messages →")));
   }
   clear(shell.banners, out);
 }
