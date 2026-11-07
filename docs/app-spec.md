@@ -1,9 +1,9 @@
 # Lintel web app: functional specification
 
-**Status:** built 2026-11-03 except Postgres (written, not run), Stripe and Resend (need 👤 accounts), the Rhino run (needs 👤 Rhino) and the Playwright suite. See [plan.md](plan.md).
+**Status:** built 2026-11-03 except Postgres (written, not run), Stripe and Resend (need 🔑 accounts), the Rhino run (needs 🔑 Rhino) and the Playwright suite. See [plan.md](plan.md).
 **Goal:** turn today's single-user demo into a web app that firms can actually use: real accounts, saved data, team approvals, a working CAD plugin connection, and the drawing-sheet look of lintel-arc.
 
-Legend: ✅ exists today · 🆕 to build · 👤 needs the owner (accounts, keys, money)
+Legend: ✅ exists today · 🆕 to build · 🔑 needs an external account or key
 
 ---
 
@@ -43,7 +43,7 @@ A user belongs to one or more **firms** (workspaces). Everything (projects, rule
 ## 3. Features and acceptance criteria
 
 ### 3.1 Accounts and firms 🆕
-- Sign up with email + password (hashed with argon2/bcrypt), sign in, sign out, reset password by email (👤 email provider).
+- Sign up with email + password (hashed with argon2/bcrypt), sign in, sign out, reset password by email (🔑 email provider).
 - First sign-up creates a firm; owners invite teammates by email; invite links expire after 7 days.
 - Sessions: secure HTTP-only cookie, 30-day expiry, CSRF token on every write.
 - **Done when:** two users in one firm see the same projects; a user in another firm sees none of them; a viewer gets 403 on any write.
@@ -84,7 +84,7 @@ A user belongs to one or more **firms** (workspaces). Everything (projects, rule
 ### 3.8 Assistant (chat) ✅ → 🆕 per user
 - Chat per project, answers from the model, cites rule references, can propose change sets and rules, never approves.
 - 🆕 streaming replies; 🆕 usage counter per firm (for plan limits).
-- 👤 `ANTHROPIC_API_KEY` in the server environment.
+- 🔑 `ANTHROPIC_API_KEY` in the server environment.
 - **Done when:** asking "which doors are too narrow?" lists the right doors and offers a change set.
 
 ### 3.9 Audit log ✅ → 🆕 filters and export
@@ -93,10 +93,10 @@ A user belongs to one or more **firms** (workspaces). Everything (projects, rule
 
 ### 3.10 Settings 🆕
 - Profile, firm name, members and roles, invites, plugin tokens, danger zone.
-- Billing placeholder (plans from `saas/11-conversion`); real payments later (👤 merchant account).
+- Billing placeholder; real payments later (🔑 merchant account).
 
 ### 3.11 Marketing site (removed 2026-11-03)
-- Removed at the owner's request. `/` and old `/site/` links redirect to `/app`. The `/api/waitlist` endpoint remains for a future site.
+- Removed. `/` and old `/site/` links redirect to `/app`. The `/api/waitlist` endpoint remains for a future site.
 
 ---
 
@@ -190,12 +190,12 @@ Components:
 
 | Area | Requirement |
 |---|---|
-| Persistence | Postgres in production (👤 create a Neon/Supabase database, free tier); data survives deploys and cold starts |
+| Persistence | Postgres in production (🔑 create a Neon/Supabase database, free tier); data survives deploys and cold starts |
 | Hosting | Vercel (already connected to GitHub, auto-deploy on push) |
 | Security | Hashed passwords, HTTP-only secure cookies, CSRF, per-firm data isolation on every query, rate limits on login and plugin endpoints, tokens stored as hashes |
-| Secrets | `DATABASE_URL`, `ANTHROPIC_API_KEY`, `SESSION_SECRET` (+ `RESEND_API_KEY` for email) in Vercel env vars (👤) |
+| Secrets | `DATABASE_URL`, `ANTHROPIC_API_KEY`, `SESSION_SECRET` (+ `RESEND_API_KEY` for email) in Vercel env vars (🔑 ) |
 | Tests | Unit tests for checks and state machine (✅ 13 today); 🆕 auth and firm-isolation tests; 🆕 end-to-end browser test of sign up → sync → fix → approve → applied |
-| Plugin | Rhino 8 plugin connects with a personal token (👤 Rhino install for the first real test) |
+| Plugin | Rhino 8 plugin connects with a personal token (🔑 Rhino install for the first real test) |
 
 ---
 

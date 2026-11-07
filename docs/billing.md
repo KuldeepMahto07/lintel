@@ -1,6 +1,6 @@
 # Lintel billing: plans, limits and payments
 
-Pricing strategy and research: `saas/11-conversion/pricing-strategy`. This file is what the app enforces.
+This file is what the app enforces.
 
 ---
 
@@ -47,7 +47,7 @@ PLANS = {
 
 ## 3. Payments
 
-**Provider:** Stripe Billing (or Lemon Squeezy as merchant of record if you don't want to handle sales tax/VAT). 👤 You create the account and products; the app needs only API keys and price ids.
+**Provider:** Stripe Billing (or Lemon Squeezy as merchant of record if you don't want to handle sales tax/VAT). 🔑 Create the account and products; the app needs only API keys and price ids.
 
 | Setting | Value |
 |---|---|
@@ -72,9 +72,9 @@ PLANS = {
 
 ---
 
-## 4. What the owner must do (👤)
+## 4. Setup needed before taking payments (🔑)
 
 1. Create the Stripe (or Lemon Squeezy) account, the products and the prices.
 2. Add the keys to Vercel (preview = test keys, production = live keys).
 3. Set the webhook URL `https://<domain>/api/billing/webhook` and copy its secret.
-4. Write the terms of service, privacy policy and refund policy pages (templates in `saas/12-revenue`).
+4. Write the terms of service, privacy policy and refund policy pages.

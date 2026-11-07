@@ -53,7 +53,7 @@
 
 ## 5. Email
 
-- Resend with a verified domain (SPF, DKIM, DMARC records added by you 👤).
+- Resend with a verified domain (SPF, DKIM, DMARC records added in your DNS 🔑).
 - Templates: invite, password reset, trial ending (3 days before), payment failed, weekly digest (open issues and approvals, opt-out).
 - Locally emails print to the console.
 

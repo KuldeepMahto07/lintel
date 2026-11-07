@@ -8,3 +8,7 @@ study/
 vendor/
 
 .vercel
+
+# Private planning notes (kept locally)
+saas/
+docs/plan.md

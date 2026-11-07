@@ -7,8 +7,6 @@ Lintel is a design-review assistant that works inside your CAD model:
 - It changes the model only after a person approves.
 - Every proposal, decision and edit goes into an audit log.
 
-It's an original product built after studying the public pages of heronaiapp.com (an agency concept site). See [`saas/01-idea/competitor-analysis`](saas/01-idea/competitor-analysis/).
-
 **Status:** SaaS web app (2026-11-03): accounts, firms, roles, invites, personal plugin tokens, plan limits, and the drawing-sheet workspace. Rhino 8 is the first host. Verified end to end with the **fixture host** (a simulator of the same plugin protocol). The Rhino plugin is written but **not yet run inside Rhino**: Rhino isn't installed on the dev machine.
 
 **Docs:** the full SaaS spec, app design, style guide, architecture, API, security, billing, operations and testing are in [`docs/`](docs/README.md).
@@ -61,7 +59,7 @@ Live: **https://lintel-ruddy-five.vercel.app** (the app at `/app`; `/` and old `
 - The database lives in the function's `/tmp` and is wiped on cold starts, so accounts, projects and pilot sign-ups do **not** persist. Set `DATABASE_URL` to a Neon Postgres database for real use.
 - No CAD plugin can stay connected to a serverless function, so the sample host applies approved change sets immediately (same drift guard, logged as `host:sample`).
 - Chat needs `ANTHROPIC_API_KEY` set in the Vercel project's environment variables.
-- `.vercelignore` keeps local data, tests, the private study build and the cloned repos out of the upload.
+- `.vercelignore` keeps local data, tests and build files out of the upload.
 
 Deploy (the installed global CLI is too old for Vercel's API):
 ```
