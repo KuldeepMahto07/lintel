@@ -60,7 +60,7 @@ Coverage target: 85% lines on `backend/`, 100% of change-set state transitions.
 
 ## 5. Manual checks before launch
 
-- Rhino 8 plugin on a real model (👤 needs Rhino): sync, fix, approve, Ctrl+Z undoes the Lintel edit.
+- Rhino 8 plugin on a real model (🔑 needs a Rhino install): sync, fix, approve, Ctrl+Z undoes the Lintel edit.
 - Password reset email arrives and the link works once.
 - Invite email arrives; an expired link shows a clear message.
 - Billing portal: change seats, cancel, resume.

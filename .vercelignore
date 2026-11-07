@@ -1,4 +1,4 @@
-# Never upload local data, secrets, the private study build or the cloned source repos
+# Never upload local data, secrets or local build files
 .venv/
 data/
 study/
